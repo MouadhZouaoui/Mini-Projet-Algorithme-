@@ -1,0 +1,50 @@
+{
+  "فاعل": {
+    "template": "1ا23",
+    "description": "اسم الفاعل (Active participle)",
+    "category": "اسم",
+    "example": "كتب -> كاتب"
+  },
+  "مفعول": {
+    "template": "م12و3",
+    "description": "اسم المفعول (Passive participle)",
+    "category": "اسم",
+    "example": "كتب -> مكتوب"
+  },
+  "افعل": {
+    "template": "ا123",
+    "description": "صيغة الأمر (Imperative)",
+    "category": "فعل",
+    "example": "كتب -> اكتب"
+  },
+  "تفاعل": {
+    "template": "ت1ا23",
+    "description": "صيغة التفاعل",
+    "category": "فعل",
+    "example": "كتب -> تكاتب"
+  },
+  "استفعل": {
+    "template": "است123",
+    "description": "صيغة الاستفعال",
+    "category": "فعل",
+    "example": "كتب -> استكتب"
+  },
+  "مفعل": {
+    "template": "م123",
+    "description": "مكان أو زمان (اسم الزمان والمكان)",
+    "category": "اسم",
+    "example": "كتب -> مكتب"
+  },
+  "فعل": {
+    "template": "123",
+    "description": "الفعل الماضي (Past tense)",
+    "category": "فعل",
+    "example": "كتب -> كتب"
+  },
+  "يفعل": {
+    "template": "ي123",
+    "description": "الفعل المضارع (Present tense)",
+    "category": "فعل",
+    "example": "كتب -> يكتب"
+  }
+}
