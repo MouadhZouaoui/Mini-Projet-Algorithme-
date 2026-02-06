@@ -11,14 +11,24 @@ Features:
 import re
 from typing import Optional, List, Tuple
 
+from arabic_types import RootCategory
 class ArabicUtils:
     """Utilities for handling Arabic text in morphological processing."""
     
-    # Arabic letters (isolated forms for reference)
+    # All Arabic letters 
     ARABIC_LETTERS = {
+        # Base Arabic letters
         'ا', 'ب', 'ت', 'ث', 'ج', 'ح', 'خ', 'د', 'ذ', 'ر', 'ز', 'س', 'ش', 'ص',
         'ض', 'ط', 'ظ', 'ع', 'غ', 'ف', 'ق', 'ك', 'ل', 'م', 'ن', 'ه', 'و', 'ي',
-        'ء', 'آ', 'أ', 'إ', 'ئ', 'ؤ', 'ة'
+        
+        # Hamza and its forms
+        'ء', 'آ', 'أ', 'إ', 'ئ', 'ؤ',
+        
+        # Other Arabic letters
+        'ة', 'ى', 'ٱ', 'ە',
+        
+        # Persian/Arabic extensions
+        'پ', 'چ', 'ژ', 'گ', 'ڤ',
     }
 
     NORMALIZATION_MAP = {
@@ -37,34 +47,71 @@ class ArabicUtils:
         '\u064B', '\u064C', '\u064D', '\u064E', '\u064F', '\u0650',
         '\u0651', '\u0652', '\u0653', '\u0654', '\u0655'
     }
+
+    ## Handles Shadda roots
+    @staticmethod
+    def expand_shadda(text: str) -> str:
+        """
+        Expand shadda (ّ) by doubling the letter before it.
+        
+        Example: 
+        - "مدّ" -> "مدد"
+        - "شدّ" -> "شدد"
+        
+        Args:
+            text (str): Arabic text with shadda
+            
+        Returns:
+            str: Text with shadda expanded
+        """
+        if not text:
+            return text
+        
+        result = []
+        i = 0
+        while i < len(text):
+            # Check if current character is a letter that might have shadda
+            if i + 1 < len(text) and text[i + 1] == '\u0651':  # Shadda
+                # Double the letter and skip the shadda
+                result.append(text[i])
+                result.append(text[i])
+                i += 2
+            else:
+                result.append(text[i])
+                i += 1
+        
+        return ''.join(result)
     
     @staticmethod
-    def normalize_arabic(text: str, aggressive: bool = False) -> str:
+    def normalize_arabic(text: str, aggressive: bool = False, expand_shadda: bool = True) -> str:
         """
-        Normalize Arabic text with configurable aggression level.
+        Normalize Arabic text with shadda expansion option.
         
         Args:
             text (str): Input Arabic text
-            aggressive (bool): If True, normalize hamza and variations.
-                              If False, preserve root letters.
-        
+            aggressive (bool): If True, normalize hamza and variations
+            expand_shadda (bool): If True, expand shadda to double letters
+            
         Returns:
             str: Normalized text
         """
         if not text:
             return ""
         
-        # Remove diacritics (always)
+        # Expand shadda first if requested
+        if expand_shadda:
+            text = ArabicUtils.expand_shadda(text)
+        
+        # Remove diacritics (except shadda which we already handled)
         for diacritic in ArabicUtils.DIACRITICS:
             text = text.replace(diacritic, '')
         
         if aggressive:
-            # Apply full normalization (for word matching)
+            # Apply full normalization
             for variant, standard in ArabicUtils.NORMALIZATION_MAP.items():
                 text = text.replace(variant, standard)
         else:
             # Preserve hamza for root letters
-            # Only normalize non-root variations
             for variant, standard in [('آ', 'ا'), ('إ', 'ا'), ('ٱ', 'ا'), ('ى', 'ي'), ('ة', 'ه')]:
                 text = text.replace(variant, standard)
         
@@ -77,6 +124,7 @@ class ArabicUtils:
     def is_valid_root(root: str) -> bool:
         """
         Check if a string is a valid Arabic triliteral root.
+        Now handles shadda and Alif Maqsura.
         
         Args:
             root (str): String to check
@@ -84,12 +132,19 @@ class ArabicUtils:
         Returns:
             bool: True if valid 3-letter Arabic root
         """
-        if not root or len(root) != 3:
+        if not root:
             return False
         
-        # Check each character is an Arabic letter
-        for char in root:
-            if char not in ArabicUtils.ARABIC_LETTERS:
+        # First expand shadda
+        expanded_root = ArabicUtils.expand_shadda(root)
+        
+        # Now check length - should be 3 letters after expanding shadda
+        if len(expanded_root) != 3:
+            return False
+        
+        # Check each character is an Arabic letter (ignoring diacritics)
+        for char in expanded_root:
+            if char not in ArabicUtils.ARABIC_LETTERS and not ArabicUtils.is_diacritic(char):
                 return False
         
         return True
@@ -137,69 +192,125 @@ class ArabicUtils:
         
         return None
     
+
     @staticmethod
     def apply_pattern(root: str, pattern_template: str) -> str:
         """
-        Apply morphological pattern to root with better handling.
+        Apply morphological pattern to root.
         
         Args:
-            root (str): Arabic root (3 letters)
-            pattern_template (str): Pattern template
-        
+            root (str): Arabic root (3 letters, may include shadda)
+            pattern_template (str): Pattern template (e.g., "122ا3")
+            
         Returns:
             str: Generated word
+            
+        Examples:
+            >>> apply_pattern("كتب", "122ا3")
+            'كتّاب'
+            >>> apply_pattern("غفر", "122ا3")
+            'غفّار'
+            >>> apply_pattern("كتب", "1ا23")
+            'كاتب'
         """
-        if not ArabicUtils.is_valid_root(root):
-            raise ValueError(f"Invalid root: {root}")
+        # Expand shadda first (in case root contains shadda)
+        expanded_root = ArabicUtils.expand_shadda(root)
+        
+        # Validate root length
+        if len(expanded_root) != 3:
+            raise ValueError(f"Root must be 3 letters after shadda expansion: {root}")
         
         result = []
-        i = 0  # Index in pattern template
-        j = 0  # Index in root
         
-        while i < len(pattern_template):
-            char = pattern_template[i]
-            
-            if char == '1':
-                if j < len(root):
-                    result.append(root[j])
-                    j += 1
-                i += 1
-            elif char == '2':
-                if j < len(root):
-                    result.append(root[j])
-                    j += 1
-                i += 1
-            elif char == '3':
-                if j < len(root):
-                    result.append(root[j])
-                    j += 1
-                i += 1
+        for char in pattern_template:
+            if char.isdigit():
+                # It's a root position indicator (1, 2, or 3)
+                root_position = int(char)
+                
+                # Validate position
+                if root_position < 1 or root_position > 3:
+                    raise ValueError(f"Invalid root position '{char}' in template. Must be 1, 2, or 3.")
+                
+                # Get the corresponding letter from root (convert to 0-based index)
+                root_idx = root_position - 1
+                result.append(expanded_root[root_idx])
             else:
-                # Check if next character is a number (for multi-digit patterns)
-                if i + 1 < len(pattern_template) and pattern_template[i + 1].isdigit():
-                    # Handle combined numbers (like 12, 23) - rare but possible
-                    if char.isdigit():
-                        num = char
-                        while i + 1 < len(pattern_template) and pattern_template[i + 1].isdigit():
-                            num += pattern_template[i + 1]
-                            i += 1
-                        root_index = int(num) - 1
-                        if root_index < len(root):
-                            result.append(root[root_index])
-                            j += 1
-                    else:
-                        result.append(char)
-                else:
-                    result.append(char)
-                i += 1
+                # It's a fixed letter (ا, و, ي, م, etc.)
+                result.append(char)
         
         return ''.join(result)
+
+
+
+    # @staticmethod
+    # def apply_pattern(root: str, pattern_template: str) -> str:
+    #     """
+    #     Apply morphological pattern to root.
+    #     Now handles roots with shadda.
+        
+    #     Args:
+    #         root (str): Arabic root (3 letters, may include shadda)
+    #         pattern_template (str): Pattern template
+            
+    #     Returns:
+    #         str: Generated word
+    #     """
+    #     # Expand shadda first
+    #     expanded_root = ArabicUtils.expand_shadda(root)
+        
+    #     # Check if valid (after shadda expansion)
+    #     if len(expanded_root) != 3:
+    #         raise ValueError(f"Root must be 3 letters after shadda expansion: {root}")
+        
+    #     result = []
+    #     i = 0  # Index in pattern template
+    #     root_index = 0  # Index in expanded root
+        
+    #     while i < len(pattern_template):
+    #         char = pattern_template[i]
+            
+    #         if char == '1':
+    #             if root_index < len(expanded_root):
+    #                 result.append(expanded_root[root_index])
+    #                 root_index += 1
+    #             i += 1
+    #         elif char == '2':
+    #             if root_index < len(expanded_root):
+    #                 result.append(expanded_root[root_index])
+    #                 root_index += 1
+    #             i += 1
+    #         elif char == '3':
+    #             if root_index < len(expanded_root):
+    #                 result.append(expanded_root[root_index])
+    #                 root_index += 1
+    #             i += 1
+    #         else:
+    #             # Check for multi-digit numbers (like 12, 23)
+    #             if char.isdigit() and i + 1 < len(pattern_template) and pattern_template[i + 1].isdigit():
+    #                 num_str = char
+    #                 while i + 1 < len(pattern_template) and pattern_template[i + 1].isdigit():
+    #                     num_str += pattern_template[i + 1]
+    #                     i += 1
+    #                 root_idx = int(num_str) - 1
+    #                 if 0 <= root_idx < len(expanded_root):
+    #                     result.append(expanded_root[root_idx])
+    #                     root_index += 1
+    #             elif char.isdigit():
+    #                 root_idx = int(char) - 1
+    #                 if 0 <= root_idx < len(expanded_root):
+    #                     result.append(expanded_root[root_idx])
+    #                     root_index += 1
+    #             else:
+    #                 result.append(char)
+    #             i += 1
+        
+    #     return ''.join(result)
     
+
     @staticmethod
     def find_pattern_match(word: str, root: str, pattern_template: str) -> bool:
         """
         Check if word matches pattern for given root.
-        Uses less aggressive normalization for roots.
         
         Args:
             word (str): Arabic word to check
@@ -209,21 +320,63 @@ class ArabicUtils:
         Returns:
             bool: True if word matches pattern
         """
-        # Generate word from root and pattern
-        generated = ArabicUtils.apply_pattern(root, pattern_template)
-        
-        # Use less aggressive normalization for comparison
-        # This preserves hamza in roots like "قرأ"
-        normalized_word = ArabicUtils.normalize_arabic(word, aggressive=False)
-        normalized_generated = ArabicUtils.normalize_arabic(generated, aggressive=False)
-        
-        # Also try with aggressive normalization for broader matching
-        if normalized_word != normalized_generated:
+        try:
+            # Generate word from root and pattern
+            generated = ArabicUtils.apply_pattern(root, pattern_template)
+            
+            # Normalize both for comparison
+            normalized_word = ArabicUtils.normalize_arabic(word, aggressive=False)
+            normalized_generated = ArabicUtils.normalize_arabic(generated, aggressive=False)
+            
+            # First attempt: non-aggressive normalization
+            if normalized_word == normalized_generated:
+                return True
+            
+            # Second attempt: aggressive normalization
             aggressive_word = ArabicUtils.normalize_arabic(word, aggressive=True)
             aggressive_generated = ArabicUtils.normalize_arabic(generated, aggressive=True)
-            return aggressive_word == aggressive_generated
+            
+            if aggressive_word == aggressive_generated:
+                return True
+            
+            # Third attempt: direct comparison (no normalization)
+            if word == generated:
+                return True
+            
+            return False
+            
+        except Exception as e:
+            # If generation fails, it's not a match
+            return False
+    # @staticmethod
+    # def find_pattern_match(word: str, root: str, pattern_template: str) -> bool:
+    #     """
+    #     Check if word matches pattern for given root.
+    #     Uses less aggressive normalization for roots.
         
-        return True
+    #     Args:
+    #         word (str): Arabic word to check
+    #         root (str): Arabic root
+    #         pattern_template (str): Pattern template
+            
+    #     Returns:
+    #         bool: True if word matches pattern
+    #     """
+    #     # Generate word from root and pattern
+    #     generated = ArabicUtils.apply_pattern(root, pattern_template)
+        
+    #     # Use less aggressive normalization for comparison
+    #     # This preserves hamza in roots like "قرأ"
+    #     normalized_word = ArabicUtils.normalize_arabic(word, aggressive=False)
+    #     normalized_generated = ArabicUtils.normalize_arabic(generated, aggressive=False)
+        
+    #     # Also try with aggressive normalization for broader matching
+    #     if normalized_word != normalized_generated:
+    #         aggressive_word = ArabicUtils.normalize_arabic(word, aggressive=True)
+    #         aggressive_generated = ArabicUtils.normalize_arabic(generated, aggressive=True)
+    #         return aggressive_word == aggressive_generated
+        
+    #     return True
     
     @staticmethod
     def get_all_possible_roots(word: str) -> List[str]:
@@ -315,3 +468,82 @@ class ArabicUtils:
             text = text.replace(plain, hamza)
         
         return text
+    
+
+    ########################THIS PART IS WHERE WE HANDLE WORD GENERATION WITH ROOT TYPE (  مشتد, مثال, أجوف, ناقص, لفيف .... )########################
+
+    @staticmethod
+    def apply_pattern_with_root_type(root: str, pattern_template: str, root_analysis) -> str:
+        """
+        Apply morphological pattern considering root type.
+        
+        Args:
+            root (str): Arabic root
+            pattern_template (str): Pattern template
+            root_analysis: RootAnalysis object
+            
+        Returns:
+            str: Generated word with root type adjustments
+        """
+        # For now, use basic application
+        # We'll add special handling based on root type
+        basic_result = ArabicUtils.apply_pattern(root, pattern_template)
+        
+        # Apply adjustments based on root type
+        adjusted_result = ArabicUtils._adjust_for_root_type(
+            basic_result, root, pattern_template, root_analysis
+        )
+        
+        return adjusted_result
+    
+    @staticmethod
+    def _adjust_for_root_type(word: str, root: str, pattern: str, analysis) -> str:
+        """
+        Adjust generated word based on root type.
+        
+        Args:
+            word (str): Basic generated word
+            root (str): Arabic root
+            pattern (str): Pattern template
+            analysis: RootAnalysis object
+            
+        Returns:
+            str: Adjusted word
+        """
+        # Default: no adjustment
+        adjusted = word
+        
+        # Handle hollow roots (أجوف)
+        if "أجوف" in analysis.subtype:
+            # Middle letter is weak (و/ي/ا)
+            # In many patterns, it changes or disappears
+            if pattern == "1ا23":  # فاعل pattern
+                # Example: قال -> قائل (و becomes ء on ا)
+                if root[1] in ['و', 'ي']:
+                    # Replace middle with hamza on alif
+                    adjusted = root[0] + 'ائ' + root[2]
+            
+            elif pattern == "123":  # فعل pattern (past tense)
+                # Hollow root in past tense: و/ي becomes ا
+                if root[1] in ['و', 'ي']:
+                    adjusted = root[0] + 'ا' + root[2]
+        
+        # Handle defective roots (ناقص)
+        elif "ناقص" in analysis.subtype:
+            # Final letter is weak
+            if pattern in ["1ا23", "12ا3"]:
+                # Final weak letter often becomes ي
+                if root[2] in ['و', 'ا', 'ى']:
+                    adjusted = word[:-1] + 'ي'
+        
+        # Handle hamzated roots (مهموز)
+        elif analysis.category == RootCategory.HAMZATED:
+            # Preserve hamza properly
+            adjusted = ArabicUtils.preserve_hamza(word)
+        
+        return adjusted
+    
+    @staticmethod
+    def is_diacritic(char: str) -> bool:
+        """Check if character is a diacritic."""
+        return char in ArabicUtils.DIACRITICS or char == '\u0651'  # Include shadda

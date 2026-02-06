@@ -14,6 +14,8 @@ from typing import Dict, List, Tuple, Optional, Any
 from avl_tree import AVLTree, AVLNode
 from hash_table import HashTable
 from arabic_utils import ArabicUtils
+from pattern_manager import PatternManager
+from root_classifier import RootClassifier
 
 class MorphologicalEngine:
     """Main engine for Arabic morphological operations."""
@@ -22,6 +24,7 @@ class MorphologicalEngine:
         """Initialize the morphological engine with empty data structures."""
         self.roots_tree = AVLTree()
         self.patterns_table = HashTable()
+        self.pattern_manager = PatternManager(self.patterns_table)
         
     def load_roots(self, roots: List[str]) -> None:
         """
@@ -30,13 +33,13 @@ class MorphologicalEngine:
         Args:
             roots (List[str]): List of Arabic roots (3 letters each)
         """
-        print(f"📥 Loading {len(roots)} roots into AVL tree...")
+        # print(f"📥 Loading {len(roots)} roots into AVL tree...")
         
         for root in roots:
             if ArabicUtils.is_valid_root(root):
                 self.roots_tree.insert(root)
         
-        print(f"✅ Loaded {self.roots_tree.count_nodes()} valid roots")
+        # print(f"✅ Loaded {self.roots_tree.count_nodes()} roots into AVL tree")
     
     def load_patterns(self, patterns: Dict[str, Dict]) -> None:
         """
@@ -45,12 +48,12 @@ class MorphologicalEngine:
         Args:
             patterns (Dict[str, Dict]): Dictionary of pattern_name -> pattern_data
         """
-        print(f"📥 Loading {len(patterns)} patterns into hash table...")
+        # print(f"📥 Loading {len(patterns)} patterns into hash table...")
         
         for pattern_name, pattern_data in patterns.items():
             self.patterns_table.insert(pattern_name, pattern_data)
         
-        print(f"✅ Loaded {len(self.patterns_table)} patterns")
+        # print(f"✅ Loaded {len(self.patterns_table)} patterns into Hash")
     
     def generate_word(self, root: str, pattern_name: str) -> Optional[Dict[str, Any]]:
         """
@@ -278,6 +281,8 @@ class MorphologicalEngine:
             return {
                 'root': root,
                 'exists': False,
+                'frequency': 0,  # ✅ Add default
+                'derivative_count': 0, 
                 'message': f"Root '{root}' not found"
             }
         # Get generated words for this root
@@ -442,3 +447,168 @@ class MorphologicalEngine:
             node.clear_derivatives()
             return True
         return False
+    
+    ########################THIS PART IS WHERE WE HANDLE WORD GENERATION WITH ROOT TYPE (  مشتد, مثال, أجوف, ناقص, لفيف .... )########################
+
+    
+    def generate_word(self, root: str, pattern_name: str, 
+                 consider_root_type: bool = True) -> Optional[Dict[str, Any]]:
+        """
+        Generate a word from root and pattern with root type consideration.
+        
+        Args:
+            root (str): Arabic root (3 letters)
+            pattern_name (str): Name of morphological pattern
+            consider_root_type (bool): Whether to apply root type adjustments
+            
+        Returns:
+            Optional[Dict]: Dictionary with generation results
+        """
+        # Validate root
+        if not ArabicUtils.is_valid_root(root):
+            print(f"❌ Invalid root: {root}")
+            return None
+        
+        # Get pattern from hash table
+        pattern_data = self.patterns_table.search(pattern_name)
+        if not pattern_data:
+            print(f"❌ Pattern not found: {pattern_name}")
+            return None
+        
+        # Get template from pattern data
+        template = pattern_data.get('template')
+        if not template:
+            print(f"❌ No template found in pattern: {pattern_name}")
+            return None
+        
+        try:
+            # Generate the word
+            if consider_root_type:
+                generated_word = RootClassifier.generate_with_root_type(
+                    root, template, pattern_name
+                )
+            else:
+                generated_word = ArabicUtils.apply_pattern(root, template)
+            
+            # Word is valid by definition (we just generated it successfully)
+            is_valid = True
+            
+            # Always store in AVL Node (since it's valid)
+            root_node = self.roots_tree.search(root)
+            if root_node:
+                root_node.add_derivative(generated_word, pattern_name)
+            
+            result = {
+                'root': root,
+                'pattern': pattern_name,
+                'template': template,
+                'generated_word': generated_word,
+                'is_valid': is_valid,
+                'consider_root_type': consider_root_type,
+                'description': pattern_data.get('description', '')
+            }
+
+            # Add rule_steps if available
+            if 'rule_steps' in pattern_data:
+                result['rule_steps'] = pattern_data['rule_steps']
+            
+            # Add category if available
+            if 'category' in pattern_data:
+                result['category'] = pattern_data['category']
+            
+            return result
+            
+        except Exception as e:
+            print(f"❌ Error generating word: {e}")
+            return None
+
+    ### THESE METHODS BELOW ARE FOR PATTERN MANAGEMENT (ADDING, EDITING, DELETING, LISTING, VALIDATING) AND THEY CALL THE CORRESPONDING METHODS IN THE PATTERN MANAGER ( NEW 06/02 )###
+    def add_pattern(self, name: str, template: str, 
+                    description: str = "", example: str = "", rule: str = "") -> tuple[bool, str]:
+        """
+        Add a new pattern to the engine.
+        
+        Args:
+            name (str): Pattern name
+            template (str): Pattern template
+            description (str): Pattern description
+            example (str): Example usage
+            rule (str): Transformation rule
+            
+        Returns:
+            tuple[bool, str]: (success, message)
+        """
+        return self.pattern_manager.add_pattern(name, template, description, example, rule)
+
+    def edit_pattern(self, name: str, **kwargs) -> tuple[bool, str]:
+        """
+        Edit an existing pattern.
+        
+        Args:
+            name (str): Pattern name
+            **kwargs: Fields to update
+            
+        Returns:
+            tuple[bool, str]: (success, message)
+        """
+        return self.pattern_manager.edit_pattern(name, **kwargs)
+
+    def delete_pattern(self, name: str) -> tuple[bool, str]:
+        """
+        Delete a pattern.
+        
+        Args:
+            name (str): Pattern name
+            
+        Returns:
+            tuple[bool, str]: (success, message)
+        """
+        return self.pattern_manager.delete_pattern(name)
+
+    def list_patterns(self, detailed: bool = False) -> dict:
+        """
+        List all patterns.
+        
+        Args:
+            detailed (bool): If True, return full details
+            
+        Returns:
+            dict: Patterns information
+        """
+        return self.pattern_manager.list_patterns(detailed)
+
+    def validate_pattern_template(self, template: str) -> tuple[bool, str]:
+        """
+        Validate a pattern template.
+        
+        Args:
+            template (str): Pattern template to validate
+            
+        Returns:
+            tuple[bool, str]: (is_valid, message)
+        """
+        return self.pattern_manager.validate_template_syntax(template)
+
+    def export_patterns_to_file(self, filepath: str) -> bool:
+        """
+        Export patterns to file.
+        
+        Args:
+            filepath (str): Path to export file
+            
+        Returns:
+            bool: True if successful
+        """
+        return self.pattern_manager.export_patterns(filepath)
+
+    def import_patterns_from_file(self, filepath: str) -> tuple[bool, str]:
+        """
+        Import patterns from file.
+        
+        Args:
+            filepath (str): Path to import file
+            
+        Returns:
+            tuple[bool, str]: (success, message)
+        """
+        return self.pattern_manager.import_patterns(filepath)

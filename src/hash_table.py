@@ -30,7 +30,7 @@ class HashEntry:
 class HashTable:
     """Hash table for Arabic morphological patterns using separate chaining."""
     
-    def __init__(self, initial_capacity: int = 10):
+    def __init__(self, initial_capacity: int = 50):
         """
         Initialize hash table with given initial capacity.
         
@@ -226,3 +226,46 @@ class HashTable:
     def __contains__(self, key: str) -> bool:
         """Check if key exists in hash table."""
         return self.search(key) is not None 
+
+    # In hash_table.py, add to HashTable class:
+
+    def add_pattern_with_validation(self, key: str, pattern_data: dict) -> tuple[bool, str]:
+        """Add pattern with validation."""
+        # Validate pattern data
+        if 'template' not in pattern_data:
+            return False, "Pattern must have 'template' field"
+        
+        template = pattern_data['template']
+        if not self._validate_template(template):
+            return False, f"Invalid template format: {template}"
+        
+        # Check if pattern already exists
+        if self.search(key):
+            return False, f"Pattern '{key}' already exists"
+        
+        self.insert(key, pattern_data)
+        return True, f"Pattern '{key}' added successfully"
+
+    def update_pattern(self, key: str, updates: dict) -> tuple[bool, str]:
+        """Update existing pattern."""
+        existing = self.search(key)
+        if not existing:
+            return False, f"Pattern '{key}' not found"
+        
+        # Merge updates
+        existing.update(updates)
+        self.insert(key, existing)  # Re-insert to update
+        return True, f"Pattern '{key}' updated successfully"
+
+    def _validate_template(self, template: str) -> bool:
+        """Validate pattern template syntax."""
+        if not template:
+            return False
+        
+        # Count root positions (1, 2, 3)
+        root_positions = sum(1 for char in template if char in '123')
+        return root_positions == 3  # Must have exactly 3 root positions
+
+    def get_pattern_names(self) -> list[str]:
+        """Get list of all pattern names."""
+        return [key for key, _ in self.get_all_patterns()]

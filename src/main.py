@@ -12,6 +12,7 @@ Author: [Zouaoui Mouadh]
 """
 
 import json
+import os
 import sys
 from typing import Optional
 
@@ -27,6 +28,8 @@ from avl_tree import AVLTree
 from hash_table import HashTable
 from arabic_utils import ArabicUtils
 from morphology import MorphologicalEngine
+from root_classifier import RootClassifier, RootAnalysis
+
 
 console = Console()
 
@@ -41,24 +44,75 @@ class ArabicMorphologyCLI:
     def load_data_files(self) -> bool:
         """Load data from files (roots.txt and patterns.json)."""
         try:
+            # Get the directory where main.py is located
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+                
+            # Go up one level to project root, then access data/
+            project_root = os.path.dirname(script_dir)
+            
+            # Build paths relative to script location
+            roots_path = os.path.join(project_root, "data", "roots.txt")
+            patterns_path = os.path.join(project_root, "data", "patterns.json")
+            
+            # Track what was loaded
+            roots_loaded = False
+            patterns_loaded = False
+            roots_count = 0
+            patterns_count = 0
+            
             # Load roots
-            with open("../data/roots.txt", "r", encoding="utf-8") as f:
-                roots = [line.strip() for line in f if line.strip()]
-                self.engine.load_roots(roots)
+            if os.path.exists(roots_path):
+                with open(roots_path, "r", encoding="utf-8") as f:
+                    roots = [line.strip() for line in f if line.strip()]
+                    
+                    if roots:
+                        self.engine.load_roots(roots)
+                        roots_count = len(roots)
+                        roots_loaded = True
+                        console.print(f"[green]✅ Loaded {roots_count} roots from roots.txt[/green]")
+                    else:
+                        console.print("[yellow]📭 roots.txt is empty - no roots to load.[/yellow]")
+            else:
+                console.print("[yellow]⚠️  roots.txt file not found.[/yellow]")
             
             # Load patterns
-            with open("../data/patterns.json", "r", encoding="utf-8") as f:
-                patterns = json.load(f)
-                self.engine.load_patterns(patterns)
+            if os.path.exists(patterns_path):
+                with open(patterns_path, "r", encoding="utf-8") as f:
+                    try:
+                        patterns = json.load(f)
+                        if patterns and isinstance(patterns, dict):
+                            self.engine.load_patterns(patterns)
+                            patterns_count = len(patterns)
+                            patterns_loaded = True
+                            console.print(f"[green]✅ Loaded patterns from patterns.json ({patterns_count} patterns)[/green]")
+                        else:
+                            console.print("[yellow]📭 patterns.json is empty or invalid.[/yellow]")
+                    except json.JSONDecodeError as e:
+                        console.print("[yellow]📭 patterns.json is empty or invalid.[/yellow]")
+            else:
+                console.print("[yellow]⚠️  patterns.json file not found.[/yellow]")
             
-            return True
+            # Check for partial loading
+            if (roots_loaded and not patterns_loaded) or (patterns_loaded and not roots_loaded):
+                console.print("\n[bold yellow]⚠️  WARNING: Data loaded partially![/bold yellow]")
+                
+                if roots_loaded and not patterns_loaded:
+                    console.print("   • Roots loaded successfully")
+                    console.print("   • Patterns file missing or empty")
+                elif patterns_loaded and not roots_loaded:
+                    console.print("   • Patterns loaded successfully")
+                    console.print("   • Roots file missing or empty")
+                                
+            
+            # Return True if at least something was loaded
+            return roots_loaded or patterns_loaded
             
         except FileNotFoundError as e:
-            console.print(f"[red]Error: {e}[/red]")
-            console.print("[yellow]Please ensure data/roots.txt and data/patterns.json exist.[/yellow]")
+            console.print(f"[red]❌ Error: File not found - {e}[/red]")
+            console.print("[yellow]📁 Please ensure data/ directory exists with roots.txt and patterns.json files.[/yellow]")
             return False
-        except json.JSONDecodeError as e:
-            console.print(f"[red]Error parsing JSON: {e}[/red]")
+        except Exception as e:
+            console.print(f"[red]❌ Unexpected error: {e}[/red]")
             return False
     
     def display_welcome(self):
@@ -69,12 +123,16 @@ class ArabicMorphologyCLI:
         [bold]Features:[/bold]
         • AVL Tree for Arabic roots (O(log n) search)
         • Hash Table for morphological patterns (O(1) access)
+        • Complete Root Management (Add, Search, Analyze)
+        • Pattern Management (Add, Edit, Delete)
         • Word generation from roots and patterns
         • Word validation and pattern recognition
         • Professional CLI with rich formatting
         
-        [bold]Academic Project:[/bold] Zouaoui Mouadh - Algorithmique 2026
-        """
+        [bold]Academic Project:[/bold] Zouaoui Mouadh 
+                          Ayari Yosr
+                          Khadhraoui Malak
+        """      
         
         console.print(Panel.fit(
             welcome_text,
@@ -86,8 +144,11 @@ class ArabicMorphologyCLI:
     def display_menu(self):
         """Display main menu."""
         menu_options = [
-            ("1", "📥 Load/Reload Data", "Load roots and patterns from files"),
-            ("2", "🔍 Search Root", "Check if a root exists in AVL tree"),
+            # ("1", "➕ Add New Root","Insert new Arabic root into AVL tree"),
+            # ("2", "🔍 Search Root", "Check if a root exists in AVL tree"),
+            # ("3", "🔬 Analyze Root", "Analyze root morphology"),
+            ("1", "🌱 Manage Roots", "Root management menu (add, search, analyze)"),
+            ("2", "🔄 Manage Patterns", "Pattern (schème) management menu"),  
             ("3", "🏗️ Generate Word", "Generate word from root and pattern"),
             ("4", "🎭 Generate All", "Generate all words for a root"),
             ("5", "✅ Validate Word", "Check if word belongs to a root"),
@@ -115,10 +176,11 @@ class ArabicMorphologyCLI:
     
     def handle_choice(self, choice: str):
         """Handle user menu choice."""
+        
         if choice == "1":
-            self.load_data()
+            self.manage_roots_menu()
         elif choice == "2":
-            self.search_root()
+            self.pattern_management()
         elif choice == "3":
             self.generate_word()
         elif choice == "4":
@@ -139,6 +201,34 @@ class ArabicMorphologyCLI:
             self.exit_application()
         else:
             console.print("[red]Invalid choice! Please try again.[/red]")
+
+    def manage_roots_menu(self):
+        """Root management submenu."""
+        console.print(Panel.fit(
+            "[bold green]🌱 Manage Arabic Roots[/bold green]",
+            border_style="green"
+        ))
+
+        stats = self.engine.get_engine_statistics()
+        console.print(f"📊 Current: {stats['roots_count']} roots in database")
+        
+        while True:
+            console.print("\n[bold]Root Management Operations:[/bold]")
+            console.print("1. ➕ Add New Root")
+            console.print("2. 🔍 Search Root")
+            console.print("3. 🔬 Analyze Root")
+            console.print("4. ↩️ Back to Main Menu")
+            
+            choice = Prompt.ask("Choose operation", choices=["1", "2", "3", "4"])
+            
+            if choice == "1":
+                self.add_root_interactively()
+            elif choice == "2":
+                self.search_root()
+            elif choice == "3":
+                self.analyze_root()
+            elif choice == "4":
+                break
     
     def manage_derivatives(self):
         """Manage derivatives menu."""
@@ -163,6 +253,40 @@ class ArabicMorphologyCLI:
             elif choice == "3":
                 self.clear_derivatives()
             elif choice == "4":
+                break
+
+    def add_root_interactively(self):
+        """Add a new root via CLI."""
+        console.print(Panel.fit(
+            "[bold green]Add New Root[/bold green]",
+            border_style="green"
+        ))
+        
+        while True:
+            root = Prompt.ask("Enter Arabic root to add (3 letters)", default="درس")
+            
+            if not ArabicUtils.is_valid_root(root):
+                console.print(f"[red]❌ '{root}' is not a valid Arabic root[/red]")
+                if not Confirm.ask("Try again?"):
+                    break
+                continue
+            
+            # Check if root exists
+            if self.engine.roots_tree.search(root):
+                console.print(f"[yellow]Root '{root}' already exists[/yellow]")
+                if not Confirm.ask("Add another root?"):
+                    break
+                continue
+            
+            # Add the root
+            self.engine.roots_tree.insert(root)
+            console.print(f"[green]✅ Root '{root}' added successfully![/green]")
+            
+            # Analyze it
+            analysis = RootClassifier.classify(root)
+            console.print(f"📊 Root type: {analysis.subtype}")
+            
+            if not Confirm.ask("Add another root?"):
                 break
 
     
@@ -300,21 +424,21 @@ class ArabicMorphologyCLI:
                 console.print(f"[red]❌ Failed to clear derivatives.[/red]")
 
 
-    def load_data(self):
-        """Load data from files."""
-        console.print(Panel.fit(
-            "[bold blue]Loading Data[/bold blue]",
-            border_style="blue"
-        ))
+    # def load_data(self):
+    #     """Load data from files."""
+    #     console.print(Panel.fit(
+    #         "[bold blue]Loading Data[/bold blue]",
+    #         border_style="blue"
+    #     ))
         
-        if self.load_data_files():
-            console.print("[green]✅ Data loaded successfully![/green]")
+    #     if self.load_data_files():
+    #         console.print("[green]✅ Data loaded successfully![/green]")
             
-            # Display summary
-            stats = self.engine.get_engine_statistics()
-            console.print(f"\n📊 Loaded: {stats['roots_count']} roots, {stats['patterns_count']} patterns")
-        else:
-            console.print("[red]❌ Failed to load data.[/red]")
+    #         # Display summary
+    #         stats = self.engine.get_engine_statistics()
+    #         console.print(f"\n📊 Loaded: {stats['roots_count']} roots, {stats['patterns_count']} patterns")
+    #     else:
+    #         console.print("[red]❌ Failed to load data.[/red]")
     
     def search_root(self):
         """Search for a root in AVL tree."""
@@ -423,20 +547,45 @@ class ArabicMorphologyCLI:
         if result:
             console.print("\n[green]✅ Word generated successfully![/green]")
             
-            # Display results in a nice table
             table = Table(title="Generation Results", box=None)
             table.add_column("Field", style="cyan")
             table.add_column("Value", style="green")
             
             table.add_row("Root", result['root'])
             table.add_row("Pattern", result['pattern'])
+            table.add_row("Category", result.get('category', 'N/A'))
             table.add_row("Generated Word", f"[bold]{result['generated_word']}[/bold]")
             table.add_row("Valid", "✓" if result['is_valid'] else "✗")
             table.add_row("Template", result['template'])
+            table.add_row("Rule", result.get('rule', 'N/A'))
+            
+            # Show rule steps if available
+            if 'rule_steps' in result:
+                table.add_row("Rule Steps", "")
+                for i, step in enumerate(result['rule_steps'], 1):
+                    table.add_row(f"  Step {i}", step)
+            
             table.add_row("Description", result.get('description', 'N/A'))
             table.add_row("Example", result.get('example', 'N/A'))
             
             console.print(table)
+        # if result:
+        #     console.print("\n[green]✅ Word generated successfully![/green]")
+            
+        #     # Display results in a nice table
+        #     table = Table(title="Generation Results", box=None)
+        #     table.add_column("Field", style="cyan")
+        #     table.add_column("Value", style="green")
+            
+        #     table.add_row("Root", result['root'])
+        #     table.add_row("Pattern", result['pattern'])
+        #     table.add_row("Generated Word", f"[bold]{result['generated_word']}[/bold]")
+        #     table.add_row("Valid", "✓" if result['is_valid'] else "✗")
+        #     table.add_row("Template", result['template'])
+        #     table.add_row("Description", result.get('description', 'N/A'))
+        #     table.add_row("Example", result.get('example', 'N/A'))
+            
+        #     console.print(table)
         else:
             console.print("[red]❌ Failed to generate word.[/red]")
     
@@ -516,7 +665,208 @@ class ArabicMorphologyCLI:
                 table.add_row("Possible Roots", ', '.join(validation['possible_roots']))
         
         console.print(table)
-    
+
+    # Again these methods are for pattern management and they call the corresponding methods in the pattern manager (new 06/02)
+
+    def pattern_management(self):
+        """Pattern management menu."""
+        console.print(Panel.fit(
+            "[bold magenta]Pattern Management[/bold magenta]",
+            border_style="magenta"
+        ))
+        
+        while True:
+            console.print("\n[bold]Pattern Operations:[/bold]")
+            console.print("1. List all patterns")
+            console.print("2. Add new pattern")
+            console.print("3. Edit existing pattern")
+            console.print("4. Delete pattern")
+            console.print("5. Validate pattern template")
+            console.print("6. Export patterns to file")
+            console.print("7. Import patterns from file")
+            console.print("8. Back to main menu")
+            
+            choice = Prompt.ask("Choose operation", choices=["1", "2", "3", "4", "5", "6", "7", "8"])
+            
+            if choice == "1":
+                self.list_patterns()
+            elif choice == "2":
+                self.add_pattern()
+            elif choice == "3":
+                self.edit_pattern()
+            elif choice == "4":
+                self.delete_pattern()
+            elif choice == "5":
+                self.validate_pattern_template()
+            elif choice == "6":
+                self.export_patterns()
+            elif choice == "7":
+                self.import_patterns()
+            elif choice == "8":
+                break
+
+    def list_patterns(self):
+        """List all patterns."""
+        patterns = self.engine.list_patterns(detailed=True)
+        
+        if not patterns:
+            console.print("[yellow]No patterns loaded.[/yellow]")
+            return
+        
+        console.print(f"\n📚 Patterns ({len(patterns)}):")
+        
+        table = Table(title="Morphological Patterns")
+        table.add_column("Name", style="cyan")
+        table.add_column("Template", style="green")
+        table.add_column("Description", style="yellow")
+        table.add_column("Example", style="magenta")
+        
+        for name, data in patterns.items():
+            table.add_row(
+                name,
+                data.get('template', 'N/A'),
+                data.get('description', '')[:30] + ('...' if len(data.get('description', '')) > 30 else ''),
+                data.get('example', 'N/A')[:20]
+            )
+        
+        console.print(table)
+
+    def add_pattern(self):
+        """Add a new pattern."""
+        console.print("\n[bold]Add New Pattern:[/bold]")
+        
+        name = Prompt.ask("Pattern name (Arabic)", default="فاعل")
+        template = Prompt.ask("Pattern template (e.g., '1ا2و3')", default="1ا2و3")
+        description = Prompt.ask("Description (optional)", default="اسم الفاعل")
+        example = Prompt.ask("Example (optional)", default="كاتب")
+        rule = Prompt.ask("Transformation rule (optional)", default="Insert root letters into template")
+        
+        console.print(f"\n[bold]New Pattern Details:[/bold]")
+        console.print(f"Name: {name}")
+        console.print(f"Template: {template}")
+        console.print(f"Description: {description}")
+        console.print(f"Example: {example}")
+        console.print(f"Rule: {rule}")
+        
+        if Confirm.ask("\nAdd this pattern?"):
+            success, message = self.engine.add_pattern(name, template, description, example, rule)
+            
+            if success:
+                console.print(f"[green]✅ {message}[/green]")
+            else:
+                console.print(f"[red]❌ {message}[/red]")
+
+    def edit_pattern(self):
+        """Edit an existing pattern."""
+        # List patterns first
+        patterns = self.engine.list_patterns(detailed=False)
+        
+        if not patterns:
+            console.print("[yellow]No patterns to edit.[/yellow]")
+            return
+        
+        console.print("\n[bold]Available Patterns:[/bold]")
+        for i, name in enumerate(patterns.keys(), 1):
+            console.print(f"  {i}. {name}")
+        
+        pattern_name = Prompt.ask("\nEnter pattern name to edit")
+        
+        # Get current pattern data
+        current_data = self.engine.patterns_table.search(pattern_name)
+        if not current_data:
+            console.print(f"[red]Pattern '{pattern_name}' not found.[/red]")
+            return
+        
+        console.print(f"\n[bold]Current Details for '{pattern_name}':[/bold]")
+        console.print(f"Template: {current_data.get('template', 'N/A')}")
+        console.print(f"Description: {current_data.get('description', 'N/A')}")
+        console.print(f"Example: {current_data.get('example', 'N/A')}")
+        console.print(f"Rule: {current_data.get('rule', 'N/A')}")
+        
+        console.print("\n[bold]Enter new values (press Enter to keep current):[/bold]")
+        
+        new_template = Prompt.ask(f"New template [{current_data.get('template', '')}]", 
+                                default=current_data.get('template', ''))
+        new_description = Prompt.ask(f"New description [{current_data.get('description', '')}]", 
+                                    default=current_data.get('description', ''))
+        new_example = Prompt.ask(f"New example [{current_data.get('example', '')}]", 
+                                default=current_data.get('example', ''))
+        new_rule = Prompt.ask(f"New rule [{current_data.get('rule', '')}]", 
+                            default=current_data.get('rule', ''))
+        
+        updates = {}
+        if new_template != current_data.get('template', ''):
+            updates['template'] = new_template
+        if new_description != current_data.get('description', ''):
+            updates['description'] = new_description
+        if new_example != current_data.get('example', ''):
+            updates['example'] = new_example
+        if new_rule != current_data.get('rule', ''):
+            updates['rule'] = new_rule
+        
+        if updates:
+            success, message = self.engine.edit_pattern(pattern_name, **updates)
+            if success:
+                console.print(f"[green]✅ {message}[/green]")
+            else:
+                console.print(f"[red]❌ {message}[/red]")
+        else:
+            console.print("[yellow]No changes made.[/yellow]")
+
+    def delete_pattern(self):
+        """Delete a pattern."""
+        patterns = self.engine.patterns_table.get_all_patterns()
+        
+        if not patterns:
+            console.print("[yellow]No patterns to delete.[/yellow]")
+            return
+        
+        console.print("\n[bold]Available Patterns:[/bold]")
+        for i, (name, _) in enumerate(patterns, 1):
+            console.print(f"  {i}. {name}")
+        
+        pattern_name = Prompt.ask("\nEnter pattern name to delete")
+        
+        if Confirm.ask(f"⚠️  Delete pattern '{pattern_name}'? This cannot be undone."):
+            success, message = self.engine.delete_pattern(pattern_name)
+            if success:
+                console.print(f"[green]✅ {message}[/green]")
+            else:
+                console.print(f"[red]❌ {message}[/red]")
+
+    def validate_pattern_template(self):
+        """Validate a pattern template."""
+        template = Prompt.ask("Enter pattern template to validate (e.g., '1ا2و3')", default="1ا2و3")
+        
+        is_valid, message = self.engine.validate_pattern_template(template)
+        
+        if is_valid:
+            console.print(f"[green]✅ {message}[/green]")
+        else:
+            console.print(f"[red]❌ {message}[/red]")
+
+    def export_patterns(self):
+        """Export patterns to file."""
+        default_filename = "patterns_export.json"
+        filename = Prompt.ask("Enter filename to export to", default=default_filename)
+        
+        if self.engine.export_patterns_to_file(filename):
+            console.print(f"[green]✅ Patterns exported to '{filename}'[/green]")
+        else:
+            console.print(f"[red]❌ Failed to export patterns[/red]")
+
+    def import_patterns(self):
+        """Import patterns from file."""
+        default_filename = "patterns_export.json"
+        filename = Prompt.ask("Enter filename to import from", default=default_filename)
+        
+        success, message = self.engine.import_patterns_from_file(filename)
+        
+        if success:
+            console.print(f"[green]✅ {message}[/green]")
+        else:
+            console.print(f"[red]❌ {message}[/red]")
+        
     def display_statistics(self):
         """Display engine statistics."""
         console.print(Panel.fit(
@@ -714,6 +1064,112 @@ class ArabicMorphologyCLI:
             
             elif choice == "7":
                 break
+
+    def analyze_root(self):
+        """Analyze root morphology."""
+        console.print(Panel.fit(
+            "[bold cyan]Root Morphological Analysis[/bold cyan]",
+            border_style="cyan"
+        ))
+        
+        root = Prompt.ask("Enter Arabic root to analyze", default="كتب")
+        
+        if not ArabicUtils.is_valid_root(root):
+            console.print(f"[red]❌ '{root}' is not a valid Arabic root (must be 3 letters).[/red]")
+            return
+        
+        # Analyze the root
+        analysis = RootClassifier.classify(root)
+        
+        # Display analysis
+        table = Table(title=f"Root Analysis: {root}")
+        table.add_column("Attribute", style="cyan")
+        table.add_column("Value", style="green")
+        
+        table.add_row("Root", analysis.root)
+        table.add_row("Category", analysis.category.value)
+        table.add_row("Subtype", analysis.subtype or "N/A")
+        table.add_row("Description", analysis.description)
+        
+        if analysis.weak_positions:
+            weak_str = ", ".join(str(p+1) for p in analysis.weak_positions)
+            table.add_row("Weak Positions", weak_str)
+        else:
+            table.add_row("Weak Positions", "None")
+        
+        if analysis.hamza_positions:
+            hamza_str = ", ".join(str(p+1) for p in analysis.hamza_positions)
+            table.add_row("Hamza Positions", hamza_str)
+        else:
+            table.add_row("Hamza Positions", "None")
+        
+        table.add_row("Is Doubled", "Yes" if analysis.is_doubled else "No")
+        
+        console.print(table)
+        
+        # Show examples of similar roots
+        examples = RootClassifier.get_examples()
+        for category, roots_list in examples.items():
+            if analysis.subtype and analysis.subtype in category:
+                console.print(f"\n📚 Examples of {analysis.subtype}:")
+                console.print(", ".join(roots_list))
+                break
+        
+        # Test generation with this root
+        if Confirm.ask("\nGenerate words with this root to see pattern adjustments?"):
+            self._test_root_patterns(root, analysis)
+
+    def _test_root_patterns(self, root: str, analysis: RootAnalysis):
+        """Test pattern generation for a root."""
+        console.print(f"\n🔧 Testing Pattern Generation for {root}:")
+        
+        # Get all patterns
+        all_patterns = self.engine.patterns_table.get_all_patterns()
+        
+        if not all_patterns:
+            console.print("[yellow]No patterns loaded.[/yellow]")
+            return
+        
+        test_results = []
+        
+        for pattern_name, pattern_data in all_patterns[:5]:  # Test first 5 patterns
+            template = pattern_data.get('template', '')
+            
+            # Generate with and without root type consideration
+            basic_word = ArabicUtils.apply_pattern(root, template)
+            adjusted_word = RootClassifier.generate_with_root_type(root, template, pattern_name)
+            
+            test_results.append({
+                'pattern': pattern_name,
+                'template': template,
+                'basic': basic_word,
+                'adjusted': adjusted_word,
+                'different': basic_word != adjusted_word
+            })
+        
+        # Display results
+        table = Table(title=f"Pattern Test for {root} ({analysis.subtype})")
+        table.add_column("Pattern", style="cyan")
+        table.add_column("Template", style="yellow")
+        table.add_column("Basic", style="blue")
+        table.add_column("Adjusted", style="green")
+        table.add_column("Notes", style="magenta")
+        
+        for result in test_results:
+            if result['different']:
+                notes = "[yellow]Adjusted for root type[/yellow]"
+            else:
+                notes = "[dim]No adjustment needed[/dim]"
+            
+            table.add_row(
+                result['pattern'],
+                result['template'],
+                result['basic'],
+                result['adjusted'],
+                notes
+            )
+        
+        console.print(table)
     
     # def tree_operations(self):
     #     """AVL tree operations submenu."""
@@ -837,8 +1293,7 @@ class ArabicMorphologyCLI:
     def exit_application(self):
         """Exit the application."""
         console.print(Panel.fit(
-            "[bold]Thank you for using the Arabic Morphological Engine![/bold]\n"
-            "Project completed successfully! 🎉",
+            "[bold]Thank you for using the Arabic Morphological Engine![/bold]\n",
             title="Goodbye",
             border_style="cyan"
         ))
@@ -848,9 +1303,28 @@ class ArabicMorphologyCLI:
         """Main application loop."""
         self.display_welcome()
         
-        # Load initial data
-        if Confirm.ask("Load data from files?"):
-            self.load_data_files()
+        # Automatically load data on startup
+        console.print("\n[bold]🔍 Loading data from files...[/bold]")
+        loaded_successfully = self.load_data_files()
+        
+        if loaded_successfully:
+            # Show engine status
+            stats = self.engine.get_engine_statistics()
+            
+            # Check if we have both roots and patterns
+            has_roots = stats['roots_count'] > 0
+            has_patterns = stats['patterns_count'] > 0
+            
+            if has_roots and has_patterns:
+                console.print("[green] Data loading completed successfully.[/green]")
+            elif has_roots or has_patterns:
+                console.print("[yellow]⚠️ Some features may be limited.[/yellow]")
+            else:
+                console.print("[yellow]⚠️  No data loaded. Application will start with empty database.[/yellow]")
+            
+            console.print(f"\n📊 Current status: {stats['roots_count']} roots, {stats['patterns_count']} patterns")
+        else:
+            console.print("[red]❌ Failed to load data. Application will start with empty database.[/red]")
         
         # Main loop
         while self.running:
