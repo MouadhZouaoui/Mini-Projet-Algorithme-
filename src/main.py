@@ -271,24 +271,28 @@ class ArabicMorphologyCLI:
                     break
                 continue
             
-            # Check if root exists
-            if self.engine.roots_tree.search(root):
-                console.print(f"[yellow]Root '{root}' already exists[/yellow]")
+            # Normalize the root for checking (expand shadda)
+            normalized_root = ArabicUtils.normalize_arabic(root, aggressive=False, expand_shadda=True)
+            
+            # Check if root exists (using normalized version)
+            if self.engine.roots_tree.search(normalized_root):
+                # Get the actual stored version to show user
+                node = self.engine.roots_tree.search(normalized_root)
+                console.print(f"[yellow]Root '{root}' is equivalent to '{node.root}' which already exists[/yellow]")
                 if not Confirm.ask("Add another root?"):
                     break
                 continue
             
             # Add the root
             self.engine.roots_tree.insert(root)
-            console.print(f"[green]✅ Root '{root}' added successfully![/green]")
+            console.print(f"[green]✅ Root '{root}' (normalized to '{normalized_root}') added successfully![/green]")
             
             # Analyze it
-            analysis = RootClassifier.classify(root)
+            analysis = RootClassifier.classify(normalized_root)
             console.print(f"📊 Root type: {analysis.subtype}")
             
             if not Confirm.ask("Add another root?"):
                 break
-
     
     def view_derivatives(self):
         """View derivatives for a specific root."""
@@ -453,9 +457,10 @@ class ArabicMorphologyCLI:
             console.print(f"[red]❌ '{root}' is not a valid Arabic root (must be 3 letters).[/red]")
             return
         
-        # Search in AVL tree
-        root_node = self.engine.roots_tree.search(root)
+        # Normalize for search (expand shadda)
+        normalized_root = ArabicUtils.normalize_arabic(root, aggressive=False, expand_shadda=True)
         
+        root_node = self.engine.roots_tree.search(normalized_root)
         if root_node:
             console.print(f"[green]✅ Root '{root}' found in AVL tree![/green]")
             
@@ -513,6 +518,16 @@ class ArabicMorphologyCLI:
             console.print(f"[red]❌ Invalid root: {root}[/red]")
             return
         
+        # Normalize the root for checking (expand shadda)
+        normalized_root = ArabicUtils.normalize_arabic(root, aggressive=False, expand_shadda=True)
+        
+        # Check if root exists in AVL tree
+        root_node = self.engine.roots_tree.search(normalized_root)
+        if not root_node:
+            console.print(f"[red]❌ Root '{root}' (normalized: '{normalized_root}') is not in the AVL tree.[/red]")
+            console.print(f"[yellow]Please add the root first using 'Manage Roots' → 'Add New Root'[/yellow]")
+            return
+        
         # Show available patterns
         all_patterns = self.engine.patterns_table.get_all_patterns()
         if not all_patterns:
@@ -543,7 +558,7 @@ class ArabicMorphologyCLI:
         # Generate the word
         with console.status(f"Generating word from '{root}' with pattern '{pattern_name}'..."):
             result = self.engine.generate_word(root, pattern_name)
-        
+                
         if result:
             console.print("\n[green]✅ Word generated successfully![/green]")
             
@@ -569,23 +584,6 @@ class ArabicMorphologyCLI:
             table.add_row("Example", result.get('example', 'N/A'))
             
             console.print(table)
-        # if result:
-        #     console.print("\n[green]✅ Word generated successfully![/green]")
-            
-        #     # Display results in a nice table
-        #     table = Table(title="Generation Results", box=None)
-        #     table.add_column("Field", style="cyan")
-        #     table.add_column("Value", style="green")
-            
-        #     table.add_row("Root", result['root'])
-        #     table.add_row("Pattern", result['pattern'])
-        #     table.add_row("Generated Word", f"[bold]{result['generated_word']}[/bold]")
-        #     table.add_row("Valid", "✓" if result['is_valid'] else "✗")
-        #     table.add_row("Template", result['template'])
-        #     table.add_row("Description", result.get('description', 'N/A'))
-        #     table.add_row("Example", result.get('example', 'N/A'))
-            
-        #     console.print(table)
         else:
             console.print("[red]❌ Failed to generate word.[/red]")
     
@@ -600,6 +598,16 @@ class ArabicMorphologyCLI:
         
         if not ArabicUtils.is_valid_root(root):
             console.print(f"[red]❌ Invalid root: {root}[/red]")
+            return
+        
+        # Normalize the root for checking (expand shadda)
+        normalized_root = ArabicUtils.normalize_arabic(root, aggressive=False, expand_shadda=True)
+        
+        # Check if root exists in AVL tree
+        root_node = self.engine.roots_tree.search(normalized_root)
+        if not root_node:
+            console.print(f"[red]❌ Root '{root}' (normalized: '{normalized_root}') is not in the AVL tree.[/red]")
+            console.print(f"[yellow]Please add the root first using 'Manage Roots' → 'Add New Root'[/yellow]")
             return
         
         # Generate all words
@@ -1078,15 +1086,19 @@ class ArabicMorphologyCLI:
             console.print(f"[red]❌ '{root}' is not a valid Arabic root (must be 3 letters).[/red]")
             return
         
-        # Analyze the root
-        analysis = RootClassifier.classify(root)
-        
+        # Normalize the root for analysis
+        normalized_root = ArabicUtils.normalize_arabic(root, aggressive=False, expand_shadda=True) 
+  
+        # Analyze the normalized root
+        analysis = RootClassifier.classify(normalized_root)
+
         # Display analysis
-        table = Table(title=f"Root Analysis: {root}")
+        table = Table(title=f"Root Analysis: {root} ( normalized: {normalized_root} )")
         table.add_column("Attribute", style="cyan")
         table.add_column("Value", style="green")
         
         table.add_row("Root", analysis.root)
+        table
         table.add_row("Category", analysis.category.value)
         table.add_row("Subtype", analysis.subtype or "N/A")
         table.add_row("Description", analysis.description)

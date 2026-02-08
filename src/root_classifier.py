@@ -49,9 +49,9 @@ class RootClassifier:
             RootAnalysis: Complete analysis of the root
         """
         # First, expand shadda to get the actual letters
-        expanded_root = ArabicUtils.expand_shadda(root)
+        normalized_root = ArabicUtils.normalize_arabic(root, aggressive=False, expand_shadda=True)
         
-        if len(expanded_root) != 3:
+        if len(normalized_root) != 3:
             return RootAnalysis(
                 root=root,
                 category=RootCategory.UNKNOWN,
@@ -59,67 +59,39 @@ class RootClassifier:
                 weak_positions=[],
                 hamza_positions=[],
                 is_doubled=False,
-                description=f"Invalid root length after shadda expansion: {len(expanded_root)}"
+                description=f"Invalid root length after normalization: {len(normalized_root)}"
             )
         
-        # Normalize for analysis (expand shadda first, then normalize)
-        normalized = RootClassifier._normalize_for_analysis(root)
         
         # Check for doubled letters (second and third same)
         # Use the expanded root for this check
-        is_doubled = (expanded_root[1] == expanded_root[2] and 
-                     expanded_root[1] not in RootClassifier.WEAK_LETTERS)
+        is_doubled = (normalized_root[1] == normalized_root[2] and 
+                     normalized_root[1] not in RootClassifier.WEAK_LETTERS)
         
         # Rest of the classification logic remains the same
         # but use the normalized (shadda-expanded) version
-        hamza_positions = RootClassifier._find_hamza_positions(normalized)
-        weak_positions = RootClassifier._find_weak_positions(normalized)
+        hamza_positions = RootClassifier._find_hamza_positions(normalized_root)
+        weak_positions = RootClassifier._find_weak_positions(normalized_root)
         
         # Determine category
         category, subtype, description = RootClassifier._determine_category(
-            normalized, hamza_positions, weak_positions, is_doubled
+            normalized_root, hamza_positions, weak_positions, is_doubled
         )
         
         # Update description to mention shadda if present
         if 'ّ' in root:
             description += " (contains shadda)"
         
-            return RootAnalysis(
-                root=root,
+        return RootAnalysis(
+                root=normalized_root,
                 category=category,
                 subtype=subtype,
                 weak_positions=weak_positions,
                 hamza_positions=hamza_positions,
                 is_doubled=is_doubled,
                 description=description
-            )
+        )
             
-        # Normalize the root for analysis
-        normalized = RootClassifier._normalize_for_analysis(root)
-        
-        # Check for hamza first (it affects other classifications)
-        hamza_positions = RootClassifier._find_hamza_positions(normalized)
-        
-        # Check for weak letters
-        weak_positions = RootClassifier._find_weak_positions(normalized)
-        
-        # Check for doubled letters (second and third same)
-        is_doubled = normalized[1] == normalized[2] and normalized[1] not in RootClassifier.WEAK_LETTERS
-        
-        # Determine category and subtype
-        category, subtype, description = RootClassifier._determine_category(
-            normalized, hamza_positions, weak_positions, is_doubled
-        )
-        
-        return RootAnalysis(
-            root=root,
-            category=category,
-            subtype=subtype,
-            weak_positions=weak_positions,
-            hamza_positions=hamza_positions,
-            is_doubled=is_doubled,
-            description=description
-        )
     
     @staticmethod
     def _normalize_for_analysis(root: str) -> str:
@@ -257,10 +229,6 @@ class RootClassifier:
                 "فاعل": "1ا2ي",  # رمى -> رامي
                 "مفعول": "م1و2ى",  # رمى -> مرمى
             },
-            "مثال": {
-                # First radical weak
-                "فاعل": "اء23",  # وعد -> عائد (و -> ع? Actually careful)
-            }
         }
         
         return adjustments.get(root_type, {})
@@ -323,15 +291,17 @@ class RootClassifier:
         Returns:
             str: Generated word
         """
+
+        normalized_root = ArabicUtils.normalize_arabic(root, aggressive=False, expand_shadda=True)
         # Classify the root
-        analysis = RootClassifier.classify(root)
+        analysis = RootClassifier.classify(normalized_root)
                 
         # Generate basic word
-        basic_word = ArabicUtils.apply_pattern(root, pattern_template)
+        basic_word = ArabicUtils.apply_pattern(normalized_root, pattern_template)
         
         # Apply specific transformations based on root type and pattern
         transformed_word = RootClassifier._transform_by_root_type(
-            basic_word, root, pattern_template, pattern_name, analysis
+            basic_word, normalized_root, pattern_template, pattern_name, analysis
         )
         
         return transformed_word
@@ -440,12 +410,10 @@ class RootClassifier:
     def _handle_doubled_root(word: str, root: str, pattern: str, pattern_name: str) -> str:
         """Handle doubled roots (second and third same)."""
         result = word
-        
-        expanded_root = ArabicUtils.expand_shadda(root)
-        
+                
         if pattern_name == "فاعل":
             # مدّ -> ماد (don't double in فاعل pattern)
-            result = expanded_root[0] + 'ا' + expanded_root[1]
+            result = root[0] + 'ا' + root[1]
         
         return result
     
@@ -453,18 +421,15 @@ class RootClassifier:
     def _handle_hamzated_root(word: str, root: str, pattern: str, pattern_name: str) -> str:
         """Handle hamzated roots with proper hamza seats."""
         result = word
-        
-        # Expand shadda first
-        expanded_root = ArabicUtils.expand_shadda(root)
-        
+                
         # For فاعل pattern with hamza in third position
         if pattern_name == "فاعل":
-            if expanded_root[2] in ['ء', 'أ', 'إ', 'آ', 'ؤ', 'ئ']:
+            if root[2] in ['ء', 'أ', 'إ', 'آ', 'ؤ', 'ئ']:
                 # قرأ -> قارئ (hamza on ya seat after long alif)
-                result = expanded_root[0] + 'ا' + expanded_root[1] + 'ئ'
-            elif expanded_root[0] in ['ء', 'أ', 'إ', 'آ', 'ؤ', 'ئ']:
+                result = root[0] + 'ا' + root[1] + 'ئ'
+            elif root[0] in ['ء', 'أ', 'إ', 'آ', 'ؤ', 'ئ']:
             # First radical is hamza: أكل -> آكل
-                result = 'آ' + expanded_root[1] + expanded_root[2]
+                result = 'آ' + root[1] + root[2]
         
         # For مفعول pattern - keep as is (already works)
         

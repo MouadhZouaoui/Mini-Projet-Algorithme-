@@ -11,6 +11,9 @@ Author: [Your Name]
 Date: [Today's Date]
 """
 
+from arabic_utils import ArabicUtils
+
+
 class AVLNode:
     """Node in AVL Tree storing an Arabic root."""
     
@@ -102,7 +105,16 @@ class AVLTree:
         Args:
             root (str): Arabic root to insert (3 letters)
         """
-        self.root = self._insert(self.root, root)
+
+        # Normalize the root first (expand shadda)
+        normalized_root = ArabicUtils.normalize_arabic(root, aggressive=False, expand_shadda=True)
+        
+        # Check if it's a valid root after normalization
+        if not ArabicUtils.is_valid_root(normalized_root):
+            print(f"❌ '{root}' is not a valid Arabic root after normalization")
+            return
+        
+        self.root = self._insert(self.root, normalized_root)
     
     def _insert(self, node: AVLNode, root: str) -> AVLNode:
         """

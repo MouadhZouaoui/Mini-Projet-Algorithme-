@@ -136,14 +136,14 @@ class ArabicUtils:
             return False
         
         # First expand shadda
-        expanded_root = ArabicUtils.expand_shadda(root)
-        
+        normalized_root = ArabicUtils.normalize_arabic(root, aggressive=False, expand_shadda=True)
+
         # Now check length - should be 3 letters after expanding shadda
-        if len(expanded_root) != 3:
+        if len(normalized_root) != 3:
             return False
         
         # Check each character is an Arabic letter (ignoring diacritics)
-        for char in expanded_root:
+        for char in normalized_root:
             if char not in ArabicUtils.ARABIC_LETTERS and not ArabicUtils.is_diacritic(char):
                 return False
         
@@ -323,25 +323,30 @@ class ArabicUtils:
         try:
             # Generate word from root and pattern
             generated = ArabicUtils.apply_pattern(root, pattern_template)
+
+            # Use direct comparison first (most strict)
+            if word == generated:
+                return True
             
             # Normalize both for comparison
-            normalized_word = ArabicUtils.normalize_arabic(word, aggressive=False)
-            normalized_generated = ArabicUtils.normalize_arabic(generated, aggressive=False)
+            normalized_word = ArabicUtils.normalize_arabic(word, aggressive=False, expand_shadda=True)
+            normalized_generated = ArabicUtils.normalize_arabic(generated, aggressive=False, expand_shadda=True)
             
             # First attempt: non-aggressive normalization
             if normalized_word == normalized_generated:
                 return True
             
             # Second attempt: aggressive normalization
-            aggressive_word = ArabicUtils.normalize_arabic(word, aggressive=True)
-            aggressive_generated = ArabicUtils.normalize_arabic(generated, aggressive=True)
+            aggressive_word = ArabicUtils.normalize_arabic(word, aggressive=True, expand_shadda=True)
+            aggressive_generated = ArabicUtils.normalize_arabic(generated, aggressive=True, expand_shadda=True)
             
             if aggressive_word == aggressive_generated:
-                return True
-            
-            # Third attempt: direct comparison (no normalization)
-            if word == generated:
-                return True
+                # Additional check: make sure aggressive normalization didn't
+                # change the word in a way that creates false matches
+                # For example, it shouldn't reorder letters
+                if len(aggressive_word) == len(word) and len(aggressive_generated) == len(generated):
+                    return True
+    
             
             return False
             

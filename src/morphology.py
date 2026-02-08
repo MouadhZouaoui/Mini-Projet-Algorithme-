@@ -51,66 +51,12 @@ class MorphologicalEngine:
         # print(f"📥 Loading {len(patterns)} patterns into hash table...")
         
         for pattern_name, pattern_data in patterns.items():
+
             self.patterns_table.insert(pattern_name, pattern_data)
-        
+    
         # print(f"✅ Loaded {len(self.patterns_table)} patterns into Hash")
     
-    def generate_word(self, root: str, pattern_name: str) -> Optional[Dict[str, Any]]:
-        """
-        Generate a word from root and pattern.
-        
-        Args:
-            root (str): Arabic root (3 letters)
-            pattern_name (str): Name of morphological pattern
-            
-        Returns:
-            Optional[Dict]: Dictionary with generation results or None if error
-        """
-        # Validate root
-        if not ArabicUtils.is_valid_root(root):
-            print(f"❌ Invalid root: {root}")
-            return None
-        
-        # Get pattern from hash table
-        pattern_data = self.patterns_table.search(pattern_name)
-        if not pattern_data:
-            print(f"❌ Pattern not found: {pattern_name}")
-            return None
-        
-        # Get template from pattern data
-        template = pattern_data.get('template')
-        if not template:
-            print(f"❌ No template found in pattern: {pattern_name}")
-            return None
-        
-        try:
-            # Generate the word
-            generated_word = ArabicUtils.apply_pattern(root, template)
-            
-            # Validate the generated word (optional check)
-            is_valid = self.validate_word(generated_word, root)['is_valid']
-            
-            if is_valid:
-                root_node = self.roots_tree.search(root)
-                if root_node:
-                    root_node.add_derivative(generated_word, pattern_name)
-            
-            result = {
-                'root': root,
-                'pattern': pattern_name,
-                'template': template,
-                'generated_word': generated_word,
-                'is_valid': is_valid,
-                'description': pattern_data.get('description', ''),
-                'example': pattern_data.get('example', '')
-            }
-            
-            
-            return result
-            
-        except Exception as e:
-            print(f"❌ Error generating word: {e}")
-            return None
+    
     
     def generate_all_for_root(self, root: str) -> List[Dict[str, Any]]:
         """
@@ -450,7 +396,6 @@ class MorphologicalEngine:
     
     ########################THIS PART IS WHERE WE HANDLE WORD GENERATION WITH ROOT TYPE (  مشتد, مثال, أجوف, ناقص, لفيف .... )########################
 
-    
     def generate_word(self, root: str, pattern_name: str, 
                  consider_root_type: bool = True) -> Optional[Dict[str, Any]]:
         """
@@ -464,6 +409,7 @@ class MorphologicalEngine:
         Returns:
             Optional[Dict]: Dictionary with generation results
         """
+
         # Validate root
         if not ArabicUtils.is_valid_root(root):
             print(f"❌ Invalid root: {root}")
@@ -471,6 +417,7 @@ class MorphologicalEngine:
         
         # Get pattern from hash table
         pattern_data = self.patterns_table.search(pattern_name)
+
         if not pattern_data:
             print(f"❌ Pattern not found: {pattern_name}")
             return None
@@ -498,6 +445,7 @@ class MorphologicalEngine:
             if root_node:
                 root_node.add_derivative(generated_word, pattern_name)
             
+            # Build result dictionary with ALL fields
             result = {
                 'root': root,
                 'pattern': pattern_name,
@@ -505,22 +453,22 @@ class MorphologicalEngine:
                 'generated_word': generated_word,
                 'is_valid': is_valid,
                 'consider_root_type': consider_root_type,
-                'description': pattern_data.get('description', '')
+                'description': pattern_data.get('description', 'N/A'),
+                'example': pattern_data.get('example', 'N/A'),
+                'rule': pattern_data.get('rule', 'N/A'),
+                'category': pattern_data.get('category', 'N/A')
             }
-
+            
             # Add rule_steps if available
             if 'rule_steps' in pattern_data:
                 result['rule_steps'] = pattern_data['rule_steps']
-            
-            # Add category if available
-            if 'category' in pattern_data:
-                result['category'] = pattern_data['category']
             
             return result
             
         except Exception as e:
             print(f"❌ Error generating word: {e}")
             return None
+    
 
     ### THESE METHODS BELOW ARE FOR PATTERN MANAGEMENT (ADDING, EDITING, DELETING, LISTING, VALIDATING) AND THEY CALL THE CORRESPONDING METHODS IN THE PATTERN MANAGER ( NEW 06/02 )###
     def add_pattern(self, name: str, template: str, 
