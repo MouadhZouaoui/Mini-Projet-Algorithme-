@@ -33,7 +33,8 @@ class DashboardWidget(QWidget):
         
         # Welcome message
         welcome = QLabel("🌙 Welcome to Arabic Morphological Engine")
-        welcome.setFont(QFont("Arial", 16, QFont.Weight.Bold))
+        welcome_font = QFont("Arial", 18, QFont.Weight.Bold)
+        welcome.setFont(welcome_font)
         welcome.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(welcome)
         
@@ -42,19 +43,19 @@ class DashboardWidget(QWidget):
         stats_layout = QGridLayout(stats_group)
         
         self.roots_label = QLabel("Roots: 0")
-        self.roots_label.setFont(QFont("Arial", 12))
+        self.roots_label.setFont(QFont("Arial", 13))
         stats_layout.addWidget(self.roots_label, 0, 0)
         
         self.patterns_label = QLabel("Patterns: 0")
-        self.patterns_label.setFont(QFont("Arial", 12))
+        self.patterns_label.setFont(QFont("Arial", 13))
         stats_layout.addWidget(self.patterns_label, 0, 1)
         
         self.generated_label = QLabel("Generated Words: 0")
-        self.generated_label.setFont(QFont("Arial", 12))
+        self.generated_label.setFont(QFont("Arial", 13))
         stats_layout.addWidget(self.generated_label, 1, 0)
         
         self.tree_height_label = QLabel("Tree Height: 0")
-        self.tree_height_label.setFont(QFont("Arial", 12))
+        self.tree_height_label.setFont(QFont("Arial", 13))
         stats_layout.addWidget(self.tree_height_label, 1, 1)
         
         layout.addWidget(stats_group)
@@ -118,7 +119,7 @@ class RootsWidget(QWidget):
         
         # Title
         title = QLabel("Arabic Roots (الجذور)")
-        title.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+        title.setFont(QFont("Arial", 16, QFont.Weight.Bold))
         layout.addWidget(title)
         
         # Roots table
@@ -162,7 +163,7 @@ class PatternsWidget(QWidget):
         
         # Title
         title = QLabel("Morphological Patterns (الأوزان)")
-        title.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+        title.setFont(QFont("Arial", 16, QFont.Weight.Bold))
         layout.addWidget(title)
         
         # Patterns table
@@ -206,7 +207,7 @@ class GenerationWidget(QWidget):
         
         # Title
         title = QLabel("Word Generation (توليد الكلمات)")
-        title.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+        title.setFont(QFont("Arial", 16, QFont.Weight.Bold))
         layout.addWidget(title)
         
         # Generated words table
@@ -266,7 +267,7 @@ class ValidationWidget(QWidget):
         
         # Title
         title = QLabel("Word Validation (التحقق من الكلمات)")
-        title.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+        title.setFont(QFont("Arial", 16, QFont.Weight.Bold))
         layout.addWidget(title)
         
         # Info text
@@ -299,7 +300,7 @@ class AnalysisWidget(QWidget):
         
         # Title
         title = QLabel("Root Analysis (تحليل الجذور)")
-        title.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+        title.setFont(QFont("Arial", 16, QFont.Weight.Bold))
         layout.addWidget(title)
         
         # Analysis table showing root categories

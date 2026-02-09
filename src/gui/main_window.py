@@ -54,6 +54,9 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("🌙 Arabic Morphological Engine")
         self.setMinimumSize(1200, 800)
         
+        # Apply stylesheet
+        self._apply_stylesheet()
+        
         # Create central widget
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -82,6 +85,169 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.analysis_widget, "🔬 Analysis (تحليل)")
         
         main_layout.addWidget(self.tabs)
+    
+    def _apply_stylesheet(self):
+        """Apply custom stylesheet with beige and purple theme."""
+        stylesheet = """
+            * {
+                font-family: Arial, sans-serif;
+            }
+            
+            QMainWindow {
+                
+            }
+            
+            QWidget {
+                
+                color: #2C2C2C;
+            }
+            
+            QTabWidget::pane {
+                
+            }
+            
+            QTabBar::tab {
+                color: #2C2C2C;
+                padding: 8px 20px;
+                margin-right: 2px;
+                font-size: 11px;
+                font-weight: bold;
+            }
+            
+            QTabBar::tab:selected {
+                
+                border-bottom: 3px solid #7B68A6;
+            }
+            
+            QPushButton {
+                background-color: #7B68A6;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                padding: 8px 16px;
+                font-weight: bold;
+                font-size: 11px;
+            }
+            
+            QPushButton:hover {
+                background-color: #8B77B6;
+            }
+            
+            QPushButton:pressed {
+                background-color: #6B5896;
+            }
+            
+            QLineEdit, QTextEdit {
+                background-color: #FEFDFB;
+                color: #2C2C2C;
+                border-radius: 4px;
+                padding: 6px;
+                font-size: 11px;
+            }
+            
+            QLineEdit:focus, QTextEdit:focus {
+                border: 2px solid #7B68A6;
+            }
+            
+            QLabel {
+                color: #2C2C2C;
+                font-size: 11px;
+            }
+            
+            QGroupBox {
+                color: #2C2C2C;
+                border-radius: 5px;
+                margin-top: 10px;
+                padding-top: 10px;
+                font-weight: bold;
+                font-size: 11px;
+            }
+            
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+            
+            QTableWidget {
+                background-color: #FEFDFB;
+                font-size: 10px;
+            }
+            
+            QTableWidget::item {
+                padding: 4px;
+                background-color: #FEFDFB;
+                color: #2C2C2C;
+            }
+            
+            QTableWidget::item:selected {
+                background-color: #E8C9B8;
+            }
+            
+            QHeaderView::section {
+                color: #2C2C2C;
+                padding: 6px;
+                font-weight: bold;
+                font-size: 10px;
+            }
+            
+            QComboBox {
+                background-color: #FEFDFB;
+                color: #2C2C2C;
+                border-radius: 4px;
+                padding: 6px;
+                font-size: 11px;
+            }
+            
+            QComboBox::drop-down {
+                border: none;
+            }
+            
+            QComboBox::down-arrow {
+                image: none;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 5px solid #7B68A6;
+            }
+            
+            QComboBox QAbstractItemView {
+                background-color: #FEFDFB;
+                color: #2C2C2C;
+                selection-background-color: #E8C9B8;
+            }
+            
+            QMenuBar {
+                color: #2C2C2C;
+                font-size: 11px;
+            }
+            
+            QMenuBar::item:selected {
+            }
+            
+            QMenu {
+                
+                color: #2C2C2C;
+                font-size: 11px;
+            }
+            
+            QMenu::item:selected {
+                background-color: #E8C9B8;
+            }
+            
+            QStatusBar {
+                color: #2C2C2C;
+                font-size: 10px;
+            }
+            
+            QDialog {
+                
+            }
+            
+            QMessageBox QLabel {
+                color: #2C2C2C;
+            }
+        """
+        self.setStyleSheet(stylesheet)
     
     def _create_menu_bar(self):
         """Create menu bar."""
