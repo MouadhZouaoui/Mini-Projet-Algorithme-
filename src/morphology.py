@@ -25,6 +25,20 @@ class MorphologicalEngine:
         self.roots_tree = AVLTree()
         self.patterns_table = HashTable()
         self.pattern_manager = PatternManager(self.patterns_table)
+
+    def root_exists(self, root: str) -> bool:
+        """
+        Check if a normalized root exists in the AVL tree.
+        
+        Args:
+            root (str): Arabic root (may contain shadda)
+            
+        Returns:
+            bool: True if root (after shadda expansion) is stored.
+        """
+        from arabic_utils import ArabicUtils
+        normalized = ArabicUtils.normalize_arabic(root, expand_shadda=True)
+        return self.roots_tree.search(normalized) is not None
         
     def load_roots(self, roots: List[str]) -> None:
         """
