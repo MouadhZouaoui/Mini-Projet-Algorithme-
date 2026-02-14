@@ -6,7 +6,7 @@ import json
 import os
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QTabWidget, QPushButton,
-    QMessageBox, QFileDialog, QStatusBar, QApplication
+    QMessageBox, QFileDialog, QStatusBar, QApplication, QSizePolicy
 )
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QAction, QShortcut, QKeySequence
@@ -51,10 +51,11 @@ class EnhancedMainWindow(QMainWindow):
         main_layout = QVBoxLayout(central_widget)
         main_layout.setContentsMargins(0, 0, 0, 0)
 
-        # Tab widget
+        # Tab widget – must expand to fill the central widget
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
         self.tabs.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        self.tabs.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         # Create all tabs
         self.dashboard_widget = EnhancedDashboardWidget(self.engine)
@@ -66,15 +67,16 @@ class EnhancedMainWindow(QMainWindow):
         self.charts_widget = StatisticsChartsWidget(self.engine)
 
         # Add tabs in logical order
-        self.tabs.addTab(self.dashboard_widget, "📊 لوحة التحكم")
-        self.tabs.addTab(self.roots_widget, "🌱 الجذور")
-        self.tabs.addTab(self.patterns_widget, "🏗️ الأوزان")
-        self.tabs.addTab(self.generation_widget, "✨ توليد الكلمات")
-        self.tabs.addTab(self.validation_widget, "✅ التحقق")
-        self.tabs.addTab(self.derivatives_widget, "📚 المشتقات")
-        self.tabs.addTab(self.charts_widget, "📈 إحصائيات مرئية")
+        self.tabs.addTab(self.dashboard_widget, "لوحة التحكم")
+        self.tabs.addTab(self.roots_widget, "الجذور")
+        self.tabs.addTab(self.patterns_widget, "الأوزان")
+        self.tabs.addTab(self.generation_widget, "توليد الكلمات")
+        self.tabs.addTab(self.validation_widget, "التحقق")
+        self.tabs.addTab(self.derivatives_widget, "المشتقات")
+        self.tabs.addTab(self.charts_widget, "إحصائيات مرئية")
 
-        main_layout.addWidget(self.tabs)
+        # Add tab widget to main layout with stretch factor 1 (takes all remaining space)
+        main_layout.addWidget(self.tabs, 1)
 
     def _create_menu_bar(self):
         """Create menu bar with all actions."""

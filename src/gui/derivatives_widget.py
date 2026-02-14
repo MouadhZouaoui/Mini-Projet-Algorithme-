@@ -1,6 +1,8 @@
 """
-Derivatives Management Widget
-View, filter, and delete validated derivatives for any root.
+Derivatives Management Widget – FINAL VERSION
+- Dropdown shows ALL roots (never empty)
+- Roots with derivatives marked with ✅
+- Table shows message when no derivatives exist
 """
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
@@ -20,9 +22,9 @@ class DerivativesWidget(QWidget):
         self.engine = engine
         self.current_root = None
         self._setup_ui()
+        self.refresh_root_list()
 
     def _setup_ui(self):
-        # Scrollable container
         scroll = QScrollArea(self)
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
@@ -32,14 +34,12 @@ class DerivativesWidget(QWidget):
         main_layout.setSpacing(25)
         main_layout.setContentsMargins(30, 30, 30, 30)
 
-        # Title
         title = QLabel("📚 إدارة المشتقات")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setStyleSheet("font-size: 18pt; font-weight: bold; color: #2C2416;")
         title.setMinimumHeight(50)
         main_layout.addWidget(title)
 
-        # Description
         desc = QLabel("اختر جذراً لعرض مشتقاته المجمّعة وحذفها")
         desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
         desc.setStyleSheet("font-size: 11pt; color: #5A4E3A; font-style: italic;")
@@ -114,28 +114,56 @@ class DerivativesWidget(QWidget):
         wrapper_layout.setContentsMargins(0, 0, 0, 0)
         wrapper_layout.addWidget(scroll)
 
+    # ----- Public refresh method (called by main window) -----
+    def refresh(self):
+        """Refresh the dropdown and table."""
         self.refresh_root_list()
 
     def refresh_root_list(self):
-        """Populate combo box with all roots that have derivatives."""
+        """Populate combo box with ALL roots, marking those with derivatives."""
         self.root_combo.clear()
         self.root_combo.addItem("-- اختر جذراً --")
-        all_nodes = self.engine.roots_tree.get_all_nodes()
-        count = 0
-        for node in all_nodes:
-            if node.get_derivative_count() > 0:
-                self.root_combo.addItem(node.root)
-                count += 1
-        if count == 0:
-            self.root_combo.addItem("(لا توجد مشتقات)")
 
-    def _on_root_changed(self, root):
+        # Get all roots from the tree (inorder traversal)
+        all_roots = self.engine.roots_tree.display_inorder()
+
+        # Separate roots with and without derivatives
+        roots_with = []
+        roots_without = []
+        for root in all_roots:
+            node = self.engine.roots_tree.search(root)
+            if node and node.get_derivative_count() > 0:
+                roots_with.append(root)
+            else:
+                roots_without.append(root)
+
+        # Add roots with derivatives first (with ✅ marker)
+        for root in roots_with:
+            self.root_combo.addItem(f"✅ {root}")
+
+        # Add roots without derivatives
+        for root in roots_without:
+            self.root_combo.addItem(root)
+
+
+        # If no roots at all, show placeholder
+        if self.root_combo.count() == 1:
+            self.root_combo.addItem("(لا توجد جذور)")
+
+    def _on_root_changed(self, root_text):
         """Handle root selection change."""
+        # Clean the text (remove ✅ marker if present)
+        if root_text.startswith("✅ "):
+            root = root_text[2:]  # remove checkmark and space
+        else:
+            root = root_text
+
         if not root or root.startswith("--") or root.startswith("(لا"):
             self.table.setRowCount(0)
             self.current_root = None
             self.clear_btn.setEnabled(False)
             return
+
         self.current_root = root
         self.clear_btn.setEnabled(True)
         self._load_derivatives(root)
@@ -145,9 +173,19 @@ class DerivativesWidget(QWidget):
         node = self.engine.roots_tree.search(root)
         if not node:
             return
-        derivatives = node.get_derivatives()
-        self.table.setRowCount(len(derivatives))
 
+        derivatives = node.get_derivatives()
+        if not derivatives:
+            # Show a message in the table
+            self.table.setRowCount(1)
+            self.table.setSpan(0, 0, 1, 4)
+            msg_item = QTableWidgetItem("🚫 لا توجد مشتقات لهذا الجذر بعد")
+            msg_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            msg_item.setFlags(Qt.ItemFlag.ItemIsEnabled)  # not selectable
+            self.table.setItem(0, 0, msg_item)
+            return
+
+        self.table.setRowCount(len(derivatives))
         for i, deriv in enumerate(derivatives):
             # Word
             self.table.setItem(i, 0, QTableWidgetItem(deriv['word']))
@@ -188,8 +226,8 @@ class DerivativesWidget(QWidget):
             if self.engine.remove_derivative(self.current_root, word, pattern):
                 QMessageBox.information(self, "نجاح", "تم حذف المشتق")
                 self.derivative_removed.emit(self.current_root, word)
-                self._load_derivatives(self.current_root)  # refresh
-                self.refresh_root_list()  # maybe root no longer has derivatives
+                self._load_derivatives(self.current_root)
+                self.refresh_root_list()  # update checkmarks
             else:
                 QMessageBox.critical(self, "خطأ", "فشل حذف المشتق")
 

@@ -13,8 +13,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 def main():
     """Main entry point."""
     try:
-        print("🌙 Starting Arabic Morphological Engine GUI...")
-        print("📦 Initializing engine...")
         
         # Import the morphological engine
         from morphology import MorphologicalEngine
@@ -22,7 +20,6 @@ def main():
         # Create the engine
         engine = MorphologicalEngine()
         
-        print("🎨 Launching GUI...")
         
         # Import the GUI
         from gui.enhanced_main_window import run_gui_app

@@ -4,7 +4,7 @@ AVL Tree implementation for Arabic roots.
 Features:
 - Self-balancing binary search tree
 - Stores Arabic triliteral roots (3-letter roots)
-- O(log n) search, insert, delete
+- O(log n) search, dynamic insertion, delete
 - In-order traversal for sorted display
 
 Author: [Your Name]

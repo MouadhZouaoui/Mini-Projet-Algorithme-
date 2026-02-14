@@ -1,30 +1,26 @@
 """
-Enhanced Roots and Patterns Widgets
-Includes:
-- Shadda normalization for root add/search
-- Real-time root validation badges (optional, not implemented here to avoid duplication)
-- Root analysis button with dialog
-- Pattern template validation on add/edit
-- Export/Import pattern buttons
-- EnhancedDashboardWidget (moved here for compatibility)
+Enhanced Roots and Patterns Widgets – FINAL FIXED VERSION
+All layout issues resolved:
+- Scroll area container has Preferred vertical policy to allow scroll bars
+- Input fields expand horizontally
+- Roots list takes all remaining vertical space
 """
-
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QListWidget, QMessageBox, QTableWidget, QTableWidgetItem,
     QHeaderView, QDialog, QFormLayout, QDialogButtonBox, QScrollArea,
-    QFileDialog, QGridLayout
+    QFileDialog, QGridLayout, QSizePolicy, QTextEdit, QDialog
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 
 from arabic_utils import ArabicUtils
 from root_classifier import RootClassifier
 from .root_analysis_dialog import RootAnalysisDialog
-from .enhanced_widgets import CardWidget  # IMPORT CardWidget from enhanced_widgets
+from .enhanced_widgets import CardWidget
 
 
 # ============================================================================
-# DASHBOARD WIDGET (formerly in this file)
+# DASHBOARD WIDGET (unchanged)
 # ============================================================================
 class EnhancedDashboardWidget(QWidget):
     """Enhanced dashboard widget with statistics cards."""
@@ -132,9 +128,9 @@ class EnhancedDashboardWidget(QWidget):
         text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         text_label.setStyleSheet("font-size: 14pt; font-weight: bold; color: #5A4E3A;")
 
-        card.layout.addWidget(icon_label)
-        card.layout.addWidget(value_label)
-        card.layout.addWidget(text_label)
+        card.card_layout.addWidget(icon_label)
+        card.card_layout.addWidget(value_label)
+        card.card_layout.addWidget(text_label)
 
         return card
 
@@ -142,19 +138,19 @@ class EnhancedDashboardWidget(QWidget):
         """Refresh dashboard statistics."""
         try:
             stats = self.engine.get_engine_statistics()
-            self.roots_card.layout.itemAt(1).widget().setText(str(stats['roots_count']))
-            self.patterns_card.layout.itemAt(1).widget().setText(str(stats['patterns_count']))
-            self.derivatives_card.layout.itemAt(1).widget().setText(str(stats['generated_words_count']))
-            self.tree_card.layout.itemAt(1).widget().setText(str(stats['avl_tree_height']))
+            self.roots_card.card_layout.itemAt(1).widget().setText(str(stats['roots_count']))
+            self.patterns_card.card_layout.itemAt(1).widget().setText(str(stats['patterns_count']))
+            self.derivatives_card.card_layout.itemAt(1).widget().setText(str(stats['generated_words_count']))
+            self.tree_card.card_layout.itemAt(1).widget().setText(str(stats['avl_tree_height']))
         except Exception as e:
             print(f"Error refreshing dashboard: {e}")
 
 
 # ============================================================================
-# ROOTS WIDGET (Enhanced)
+# ROOTS WIDGET – FINAL FIXED LAYOUT
 # ============================================================================
 class EnhancedRootsWidget(QWidget):
-    """Enhanced roots management widget with shadda normalization and root analysis."""
+    """Roots management with correct expanding layout."""
     root_added = pyqtSignal(str)
     root_selected = pyqtSignal(str)
 
@@ -164,21 +160,27 @@ class EnhancedRootsWidget(QWidget):
         self._setup_ui()
 
     def _setup_ui(self):
+        # Outer scroll area – expands to fill tab
         scroll = QScrollArea(self)
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
+        # Container widget – expand horizontally only, allow vertical to exceed viewport
         container = QWidget()
+        container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+
+        # Main layout for container
         main_layout = QVBoxLayout(container)
         main_layout.setSpacing(25)
         main_layout.setContentsMargins(30, 30, 30, 30)
 
+        # Title
         title = QLabel("📚 إدارة الجذور")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setStyleSheet("font-size: 18pt; font-weight: bold; color: #2C2416; padding: 10px;")
         title.setMinimumHeight(50)
         main_layout.addWidget(title)
-        main_layout.addSpacing(10)
 
         # ---------- ADD ROOT CARD ----------
         add_card = CardWidget("إضافة جذر جديد")
@@ -193,6 +195,7 @@ class EnhancedRootsWidget(QWidget):
         self.root_input.setPlaceholderText("مثال: درس")
         self.root_input.setAlignment(Qt.AlignmentFlag.AlignRight)
         self.root_input.setMinimumHeight(50)
+        self.root_input.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.root_input.returnPressed.connect(self._add_root)
         self.root_input.setToolTip("أدخل جذراً ثلاثياً. سيتم توسعة الشدة تلقائياً.")
 
@@ -200,10 +203,9 @@ class EnhancedRootsWidget(QWidget):
         add_btn.setMaximumWidth(100)
         add_btn.setMinimumHeight(50)
         add_btn.clicked.connect(self._add_root)
-        add_btn.setToolTip("إضافة الجذر إلى شجرة AVL")
 
         input_layout.addWidget(input_label)
-        input_layout.addWidget(self.root_input)
+        input_layout.addWidget(self.root_input, 1)  # stretch
         input_layout.addWidget(add_btn)
 
         input_widget = QWidget()
@@ -224,8 +226,8 @@ class EnhancedRootsWidget(QWidget):
         self.search_input.setPlaceholderText("ابحث عن جذر...")
         self.search_input.setAlignment(Qt.AlignmentFlag.AlignRight)
         self.search_input.setMinimumHeight(50)
+        self.search_input.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.search_input.returnPressed.connect(self._search_root)
-        self.search_input.setToolTip("أدخل الجذر للبحث عنه في الشجرة")
 
         search_btn = QPushButton("بحث")
         search_btn.setMaximumWidth(80)
@@ -236,10 +238,9 @@ class EnhancedRootsWidget(QWidget):
         analyze_btn.setMaximumWidth(80)
         analyze_btn.setMinimumHeight(50)
         analyze_btn.clicked.connect(self._analyze_root)
-        analyze_btn.setToolTip("تحليل الجذر وتصنيفه (صحيح، معتل، مهموز، مضعف)")
 
         search_layout.addWidget(search_label)
-        search_layout.addWidget(self.search_input)
+        search_layout.addWidget(self.search_input, 1)
         search_layout.addWidget(search_btn)
         search_layout.addWidget(analyze_btn)
 
@@ -248,24 +249,35 @@ class EnhancedRootsWidget(QWidget):
         search_card.add_widget(search_widget)
         main_layout.addWidget(search_card)
 
-        # ---------- ROOTS LIST CARD ----------
+        # ---------- ROOTS LIST CARD – MUST EXPAND ----------
         roots_card = CardWidget("الجذور المخزنة")
+        roots_card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
+        # Stats label
         self.stats_label = QLabel()
         self.stats_label.setStyleSheet("font-size: 11pt; color: #5A4E3A; font-style: italic;")
         self.stats_label.setMinimumHeight(25)
         roots_card.add_widget(self.stats_label)
 
+        # Roots list
         self.roots_list = QListWidget()
-        self.roots_list.setMinimumHeight(250)
+        self.roots_list.setMinimumHeight(150)  # small minimum, will expand
+        self.roots_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.roots_list.itemClicked.connect(self._on_root_selected)
         self.roots_list.setToolTip("انقر على أي جذر لاستعراض معلوماته")
         roots_card.add_widget(self.roots_list)
 
-        main_layout.addWidget(roots_card)
-        main_layout.addStretch()
+        # Critical: list takes all extra space inside the card
+        roots_card.card_layout.setStretchFactor(self.roots_list, 1)
+
+        # Add roots card with stretch factor 1 – takes remaining vertical space
+        main_layout.addWidget(roots_card, 1)
+
+        # NO stretch at the end – roots_card will expand
 
         scroll.setWidget(container)
 
+        # Main layout for this widget (just the scroll area)
         wrapper_layout = QVBoxLayout(self)
         wrapper_layout.setContentsMargins(0, 0, 0, 0)
         wrapper_layout.addWidget(scroll)
@@ -274,7 +286,6 @@ class EnhancedRootsWidget(QWidget):
 
     # ---------- NORMALIZATION HELPER ----------
     def _normalize_root(self, root):
-        """Expand shadda and return normalized root."""
         return ArabicUtils.normalize_arabic(root, expand_shadda=True)
 
     # ---------- ADD ROOT ----------
@@ -283,15 +294,11 @@ class EnhancedRootsWidget(QWidget):
         if not root:
             QMessageBox.warning(self, "تحذير", "يرجى إدخال الجذر")
             return
-
         if not ArabicUtils.is_valid_root(root):
             QMessageBox.warning(self, "تحذير", f"'{root}' ليس جذراً صالحاً (يجب 3 أحرف)")
             return
-
-        # Normalize for existence check
         normalized = self._normalize_root(root)
         if self.engine.root_exists(normalized):
-            # Find the stored version for display
             node = self.engine.roots_tree.search(normalized)
             stored = node.root if node else normalized
             QMessageBox.information(
@@ -299,17 +306,15 @@ class EnhancedRootsWidget(QWidget):
                 f"الجذر '{root}' (بصيغته الطبيعية: {stored}) موجود بالفعل"
             )
             return
-
-        # Insert (the tree will normalize internally)
         self.engine.roots_tree.insert(root)
         QMessageBox.information(self, "نجاح", f"✅ تم إضافة الجذر '{root}'")
-
         self.root_input.clear()
         self.refresh()
         self.root_added.emit(root)
 
     # ---------- SEARCH ROOT ----------
     def _search_root(self):
+        """Search for a root and show detailed information in a custom dialog."""
         root = self.search_input.text().strip()
         if not root:
             QMessageBox.warning(self, "تحذير", "يرجى إدخال الجذر للبحث")
@@ -319,32 +324,62 @@ class EnhancedRootsWidget(QWidget):
         node = self.engine.roots_tree.search(normalized)
 
         if node:
-            # Build info message
-            info = f"✅ الجذر: {node.root}\n"
-            info += f"📊 التكرار: {node.frequency}\n"
-            info += f"📚 عدد المشتقات: {node.get_derivative_count()}\n"
-            info += f"📏 الارتفاع في الشجرة: {node.height}\n"
+            # Build rich text info
+            info = f"<h2 style='color: #6B5B95;'>✅ الجذر: {node.root}</h2>"
+            info += f"<p><b>📊 التكرار:</b> {node.frequency}</p>"
+            info += f"<p><b>📚 عدد المشتقات:</b> {node.get_derivative_count()}</p>"
+            info += f"<p><b>📏 الارتفاع في الشجرة:</b> {node.height}</p>"
 
             derivatives = node.get_derivatives()
             if derivatives:
-                info += "\n📝 المشتقات (أحدث 5):\n"
-                for i, deriv in enumerate(derivatives[:5], 1):
-                    info += f"  {i}. {deriv['word']} ({deriv['pattern']})\n"
-                if len(derivatives) > 5:
-                    info += f"  ... و {len(derivatives)-5} مشتق آخر"
+                info += "<h3 style='color: #2C2416;'>📝 المشتقات:</h3><ul>"
+                for deriv in derivatives[:10]:  # Show first 10
+                    info += f"<li><b>{deriv['word']}</b> (الوزن: {deriv['pattern']}, التكرار: {deriv['frequency']})</li>"
+                if len(derivatives) > 10:
+                    info += f"<li>... و {len(derivatives)-10} مشتق آخر</li>"
+                info += "</ul>"
+            else:
+                info += "<p><i>لا توجد مشتقات لهذا الجذر بعد.</i></p>"
 
-            QMessageBox.information(self, f"معلومات الجذر: {root}", info)
+            # Create custom dialog
+            dialog = QDialog(self)
+            dialog.setWindowTitle(f"معلومات الجذر: {root}")
+            dialog.setMinimumSize(600, 400)
+            dialog.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+
+            layout = QVBoxLayout(dialog)
+
+            # Text edit for rich text
+            text_edit = QTextEdit()
+            text_edit.setHtml(info)
+            text_edit.setReadOnly(True)
+            text_edit.setStyleSheet("""
+                QTextEdit {
+                    background-color: #F5EFE6;
+                    border: 2px solid #C5B5A0;
+                    border-radius: 8px;
+                    padding: 10px;
+                    font-size: 12pt;
+                }
+            """)
+            layout.addWidget(text_edit)
+
+            # Close button
+            close_btn = QPushButton("إغلاق")
+            close_btn.setMinimumHeight(40)
+            close_btn.clicked.connect(dialog.accept)
+            layout.addWidget(close_btn)
+
+            dialog.exec()
         else:
             QMessageBox.warning(self, "غير موجود", f"الجذر '{root}' غير موجود في الشجرة")
 
     # ---------- ANALYZE ROOT ----------
     def _analyze_root(self):
-        """Open root analysis dialog."""
         root = self.search_input.text().strip() or self.root_input.text().strip()
         if not root:
             QMessageBox.warning(self, "تنبيه", "أدخل جذراً للتحليل")
             return
-
         normalized = self._normalize_root(root)
         analysis = RootClassifier.classify(normalized)
         dialog = RootAnalysisDialog(analysis, self)
@@ -352,8 +387,7 @@ class EnhancedRootsWidget(QWidget):
 
     # ---------- ROOT SELECTION ----------
     def _on_root_selected(self, item):
-        root = item.text()
-        self.root_selected.emit(root)
+        self.root_selected.emit(item.text())
 
     # ---------- REFRESH ----------
     def refresh(self):
@@ -366,7 +400,7 @@ class EnhancedRootsWidget(QWidget):
 
 
 # ============================================================================
-# PATTERNS WIDGET (Enhanced)
+# PATTERNS WIDGET (unchanged)
 # ============================================================================
 class EnhancedPatternsWidget(QWidget):
     """Enhanced patterns management widget with validation, export, import."""
