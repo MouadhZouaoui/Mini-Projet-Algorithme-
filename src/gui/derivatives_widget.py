@@ -36,13 +36,13 @@ class DerivativesWidget(QWidget):
 
         title = QLabel("📚 إدارة المشتقات")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("font-size: 18pt; font-weight: bold; color: #2C2416;")
+        title.setStyleSheet("font-size: 25pt; font-weight: bold; color: #2C2416;")
         title.setMinimumHeight(50)
         main_layout.addWidget(title)
 
         desc = QLabel("اختر جذراً لعرض مشتقاته المجمّعة وحذفها")
         desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        desc.setStyleSheet("font-size: 11pt; color: #5A4E3A; font-style: italic;")
+        desc.setStyleSheet("font-size: 15pt; color: #5A4E3A; font-style: italic;")
         desc.setWordWrap(True)
         main_layout.addWidget(desc)
         main_layout.addSpacing(10)
@@ -73,7 +73,7 @@ class DerivativesWidget(QWidget):
         self.root_combo.setMinimumHeight(45)
         self.root_combo.currentTextChanged.connect(self._on_root_changed)
         self.root_combo.setToolTip("اختر جذراً لعرض مشتقاته")
-        refresh_btn = QPushButton("🔄 تحديث القائمة")
+        refresh_btn = QPushButton("تحديث القائمة")
         refresh_btn.setMinimumHeight(45)
         refresh_btn.clicked.connect(self.refresh_root_list)
 
@@ -90,6 +90,23 @@ class DerivativesWidget(QWidget):
         self.table = QTableWidget()
         self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels(["الكلمة", "الوزن", "التكرار", "الإجراءات"])
+        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        header = self.table.horizontalHeader()
+        header.setStretchLastSection(True)
+        header.setStyleSheet("""
+            QHeaderView::section {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                                            stop:0 #8573B3, stop:1 #584A7A);
+                color: white;
+                padding: 8px;
+                border: none;
+                font-weight: bold;
+            }
+        """)
+
+        # Make rows non‑resizable
+        self.table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
+        self.table.verticalHeader().setDefaultSectionSize(100) 
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
@@ -169,50 +186,95 @@ class DerivativesWidget(QWidget):
         self._load_derivatives(root)
 
     def _load_derivatives(self, root):
-        """Load and display derivatives for the given root."""
         node = self.engine.roots_tree.search(root)
         if not node:
             return
-
         derivatives = node.get_derivatives()
-        if not derivatives:
-            # Show a message in the table
-            self.table.setRowCount(1)
-            self.table.setSpan(0, 0, 1, 4)
-            msg_item = QTableWidgetItem("🚫 لا توجد مشتقات لهذا الجذر بعد")
-            msg_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            msg_item.setFlags(Qt.ItemFlag.ItemIsEnabled)  # not selectable
-            self.table.setItem(0, 0, msg_item)
-            return
-
         self.table.setRowCount(len(derivatives))
         for i, deriv in enumerate(derivatives):
-            # Word
+            # Word, Pattern, Frequency cells
             self.table.setItem(i, 0, QTableWidgetItem(deriv['word']))
-            # Pattern
             self.table.setItem(i, 1, QTableWidgetItem(deriv['pattern']))
-            # Frequency
             self.table.setItem(i, 2, QTableWidgetItem(str(deriv['frequency'])))
+
+            # Button widget
+            btn_widget = QWidget()
+            btn_layout = QHBoxLayout(btn_widget)
+            btn_layout.setContentsMargins(4, 4, 4, 4)
+            btn_layout.setSpacing(8)
+
+            # Decrement button
+            dec_btn = QPushButton(" −1 تكرار")
+            dec_btn.setFixedSize(120, 25)
+            dec_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #FF9800;
+                    color: white;
+                    border: none;
+                    border-radius: 5px;
+                    font-weight: bold;
+                    font-size: 12pt;
+                }
+                QPushButton:hover {
+                    background-color: #F57C00;
+                }
+                QPushButton:pressed {
+                    background-color: #EF6C00;
+                }
+            """)
+            dec_btn.clicked.connect(lambda checked, w=deriv['word'], p=deriv['pattern'], r=root:
+                                    self._decrement_frequency(w, p, r))
+
             # Delete button
-            btn = QPushButton("✖️ حذف")
-            btn.setMinimumHeight(35)
-            btn.setStyleSheet("""
+            del_btn = QPushButton("✖ حذف")
+            del_btn.setFixedSize(120, 25)
+            del_btn.setStyleSheet("""
                 QPushButton {
                     background-color: #F44336;
                     color: white;
+                    border: none;
                     border-radius: 5px;
-                    padding: 5px;
+                    font-weight: bold;
+                    font-size: 12pt;
                 }
                 QPushButton:hover {
                     background-color: #D32F2F;
                 }
+                QPushButton:pressed {
+                    background-color: #B71C1C;
+                }
             """)
-            btn.clicked.connect(
-                lambda checked, w=deriv['word'], p=deriv['pattern']:
-                self._remove_derivative(w, p)
-            )
-            self.table.setCellWidget(i, 3, btn)
+            del_btn.clicked.connect(lambda checked, w=deriv['word'], p=deriv['pattern'], r=root:
+                                    self._remove_derivative(w, p, r))
 
+            btn_layout.addWidget(dec_btn)
+            btn_layout.addWidget(del_btn)
+            btn_layout.addStretch()
+            self.table.setCellWidget(i, 3, btn_widget)
+
+    def _decrement_frequency(self, word, pattern, root):
+        if not root:
+            return
+        node = self.engine.roots_tree.search(root)
+        if not node:
+            return
+        for deriv in node.get_derivatives():
+            if deriv['word'] == word and deriv['pattern'] == pattern:
+                if deriv['frequency'] > 1:
+                    deriv['frequency'] -= 1
+                    QMessageBox.information(self, "نجاح", f"تم إنقاص تكرار '{word}' إلى {deriv['frequency']}")
+                else:
+                    # Ask to delete when frequency becomes 0
+                    reply = QMessageBox.question(
+                        self, "تكرار صفر",
+                        f"التكرار الآن 0. هل تريد حذف المشتق؟",
+                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                    )
+                    if reply == QMessageBox.StandardButton.Yes:
+                        self._remove_derivative(word, pattern)
+                self._load_derivatives(root)
+                return
+        
     def _remove_derivative(self, word, pattern):
         """Remove a single derivative after confirmation."""
         if not self.current_root:

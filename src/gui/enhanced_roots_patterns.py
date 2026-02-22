@@ -5,146 +5,554 @@ All layout issues resolved:
 - Input fields expand horizontally
 - Roots list takes all remaining vertical space
 """
+
+import os 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
+    QComboBox, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QListWidget, QMessageBox, QTableWidget, QTableWidgetItem,
     QHeaderView, QDialog, QFormLayout, QDialogButtonBox, QScrollArea,
-    QFileDialog, QGridLayout, QSizePolicy, QTextEdit, QDialog
+    QFileDialog, QGridLayout, QSizePolicy, QTextEdit, QDialog, QFrame
 )
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import QEvent, Qt, pyqtSignal, QPropertyAnimation, QEasingCurve, QTimer
+from PyQt6.QtGui import QPixmap
 
 from arabic_utils import ArabicUtils
 from root_classifier import RootClassifier
 from .root_analysis_dialog import RootAnalysisDialog
 from .enhanced_widgets import CardWidget
 
-
-# ============================================================================
-# DASHBOARD WIDGET (unchanged)
-# ============================================================================
 class EnhancedDashboardWidget(QWidget):
-    """Enhanced dashboard widget with statistics cards."""
-
     def __init__(self, engine, parent=None):
         super().__init__(parent)
         self.engine = engine
+        self.recent_actions = []
         self._setup_ui()
+        self._start_refresh_timer()
 
     def _setup_ui(self):
-        # Scrollable container
-        scroll = QScrollArea(self)
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        # Outer scroll area
+        self.scroll = QScrollArea(self)
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        self.scroll.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
-        container = QWidget()
-        main_layout = QVBoxLayout(container)
-        main_layout.setSpacing(25)
+        # Container widget
+        self.container = QWidget()
+        self.container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+
+        # Main layout for container
+        main_layout = QVBoxLayout(self.container)
+        main_layout.setSpacing(30)
         main_layout.setContentsMargins(30, 30, 30, 30)
 
         # Title
-        title = QLabel("🌙 محرك البحث المورفولوجي")
+        title = QLabel("🌙 لوحة التحكم")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("""
-            font-size: 18pt; font-weight: bold; color: #2C2416;
-            padding: 10px; margin-bottom: 5px;
-        """)
-        title.setMinimumHeight(50)
+        title.setStyleSheet("font-size: 25pt; font-weight: bold; color: #2C2416;")
+        title.setMinimumHeight(40)
         main_layout.addWidget(title)
 
         # Subtitle
-        subtitle = QLabel("استكشف الجذور العربية وأوزانها الصرفية")
-        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        subtitle.setStyleSheet("""
-            font-size: 11pt; color: #5A4E3A; font-style: italic;
-            padding: 5px;
-        """)
-        subtitle.setWordWrap(True)
-        subtitle.setMinimumHeight(30)
-        main_layout.addWidget(subtitle)
-
+        desc = QLabel("نظرة عامة على النظام وإحصائيات حية")
+        desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        desc.setStyleSheet("font-size: 15pt; color: #5A4E3A; font-style: italic;")
+        desc.setWordWrap(True)
+        main_layout.addWidget(desc)
         main_layout.addSpacing(10)
 
-        # Stats grid
-        stats_layout = QGridLayout()
-        stats_layout.setSpacing(15)
-
+        # ---------- Counter Cards (two rows, two columns) ----------
         stats = self.engine.get_engine_statistics()
+        self.roots_card = self._create_counter_card("🌱", "الجذور", stats['roots_count'])
+        self.patterns_card = self._create_counter_card("📐", "الأوزان", stats['patterns_count'])
+        self.derivatives_card = self._create_counter_card("📝", "المشتقات", stats['generated_words_count'])
+        self.tree_card = self._create_counter_card("🌳", "ارتفاع الشجرة", stats['avl_tree_height'])
 
-        self.roots_card = self._create_stat_card("🌱", "الجذور", str(stats['roots_count']))
-        self.patterns_card = self._create_stat_card("📐", "الأوزان", str(stats['patterns_count']))
-        self.derivatives_card = self._create_stat_card("📝", "المشتقات", str(stats['generated_words_count']))
-        self.tree_card = self._create_stat_card("🌳", "ارتفاع الشجرة", str(stats['avl_tree_height']))
+        # Row 1
+        row1 = QHBoxLayout()
+        row1.setSpacing(20)
+        row1.addWidget(self.roots_card, 1)
+        row1.addWidget(self.patterns_card, 1)
+        main_layout.addLayout(row1)
 
-        stats_layout.addWidget(self.roots_card, 0, 0)
-        stats_layout.addWidget(self.patterns_card, 0, 1)
-        stats_layout.addWidget(self.derivatives_card, 1, 0)
-        stats_layout.addWidget(self.tree_card, 1, 1)
+        # Row 2
+        row2 = QHBoxLayout()
+        row2.setSpacing(20)
+        row2.addWidget(self.derivatives_card, 1)
+        row2.addWidget(self.tree_card, 1)
+        main_layout.addLayout(row2)
 
-        main_layout.addLayout(stats_layout)
+        # ---------- Quick Action Cards (two rows, two columns) ----------
+        actions_label = QLabel("إجراءات سريعة")
+        actions_label.setStyleSheet("font-size: 25pt; font-weight: bold; color: #2C2416;")
+        main_layout.addWidget(actions_label)
 
-        # Info card
-        info_card = CardWidget("معلومات النظام")
-        info_text = """
-        <div style='direction: rtl; font-size: 13pt;'>
-            <h3 style='color: #6B5B95;'>المميزات:</h3>
-            <ul>
-                <li>🌳 <b>شجرة AVL للجذور:</b> O(log n)</li>
-                <li>⚡ <b>جدول التجزئة للأوزان:</b> O(1)</li>
-                <li>🔄 <b>توليد الكلمات</b> مع مراعاة أنواع الجذور</li>
-                <li>✅ <b>التحقق المورفولوجي</b> مع دعم المشتقات المتعددة</li>
-                <li>📚 <b>إدارة المشتقات</b> (عرض، حذف)</li>
-                <li>📊 <b>إحصائيات مرئية</b> ورسوم بيانية</li>
-            </ul>
-        </div>
-        """
-        info_label = QLabel(info_text)
-        info_label.setWordWrap(True)
-        info_label.setMinimumHeight(150)
-        info_card.add_widget(info_label)
+        self.add_card = self._create_action_card("plus.png", "إضافة جذر")
+        self.gen_card = self._create_action_card("reminder.png", "توليد كلمة")
+        self.val_card = self._create_action_card("check-mark.png", "تحقق")
+        self.deriv_card = self._create_action_card("agenda.png", "المشتقات")
 
-        main_layout.addWidget(info_card)
-        main_layout.addStretch()
+        # Row A
+        rowA = QHBoxLayout()
+        rowA.setSpacing(20)
+        rowA.addWidget(self.add_card, 1)
+        rowA.addWidget(self.gen_card, 1)
+        main_layout.addLayout(rowA)
 
-        scroll.setWidget(container)
+        # Row B
+        rowB = QHBoxLayout()
+        rowB.setSpacing(20)
+        rowB.addWidget(self.val_card, 1)
+        rowB.addWidget(self.deriv_card, 1)
+        main_layout.addLayout(rowB)
 
+        # ---------- Charts ----------
+        charts_label = QLabel("إحصائيات مرئية")
+        charts_label.setStyleSheet("font-size: 25pt; font-weight: bold; color: #2C2416;")
+        main_layout.addWidget(charts_label)
+
+        from .charts_widget import StatisticsChartsWidget
+        self.charts = StatisticsChartsWidget(self.engine)
+        self.charts.setMinimumHeight(300)
+        self.charts.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        main_layout.addWidget(self.charts, 1)
+
+        # ---------- Recent Activity ----------
+        activity_label = QLabel("آخر النشاطات")
+        activity_label.setStyleSheet("font-size: 25pt; font-weight: bold; color: #2C2416;")
+        main_layout.addWidget(activity_label)
+
+        self.activity_list = QListWidget()
+        self.activity_list.setMinimumHeight(150)
+        self.activity_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.activity_list.setStyleSheet("""
+            QListWidget {
+                background-color: #FAF0E6;
+                border: 2px solid #C5B5A0;
+                border-radius: 8px;
+                padding: 10px;
+            }
+        """)
+        self._update_activity_feed()
+        main_layout.addWidget(self.activity_list, 1)
+
+        self.scroll.setWidget(self.container)
+
+        # Final layout for this widget
         wrapper_layout = QVBoxLayout(self)
         wrapper_layout.setContentsMargins(0, 0, 0, 0)
-        wrapper_layout.addWidget(scroll)
+        wrapper_layout.addWidget(self.scroll)
 
-    def _create_stat_card(self, icon, label, value):
-        """Create a statistic card."""
-        card = CardWidget()
+        # Adjust container width when viewport resizes
+        self.scroll.viewport().installEventFilter(self)
+        # Also adjust after a short delay to ensure initial size
+        QTimer.singleShot(100, self._adjust_container_width)
+
+    def eventFilter(self, obj, event):
+        if obj == self.scroll.viewport() and event.type() == QEvent.Type.Resize:
+            self._adjust_container_width()
+        return super().eventFilter(obj, event)
+
+    def _adjust_container_width(self):
+        """Force container to be at least as wide as the viewport."""
+        vp_width = self.scroll.viewport().width()
+        if vp_width > 0:
+            self.container.setMinimumWidth(vp_width)
+
+    # ---------- Helper Methods (unchanged) ----------
+    def _create_counter_card(self, emoji, label, value):
+        card = QFrame()
+        card.setFrameShape(QFrame.Shape.StyledPanel)
+        card.setObjectName("displayCard")
+        card.setStyleSheet("""
+            QFrame#displayCard {
+                background: qlineargradient(
+                x1:0, y1:0,
+                x2:1, y2:1,
+                stop:0 #fdfcfb,
+                stop:1 #e2d1c3
+            );
+                border-radius: 12px;
+                border: 2px solid #C5B5A0;
+                padding: 15px;
+            }
+        """)
         card.setMinimumHeight(100)
+        card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
-        icon_label = QLabel(icon)
-        icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        icon_label.setStyleSheet("font-size: 36pt;")
+        layout = QVBoxLayout(card)
+        layout.setSpacing(10)
 
-        value_label = QLabel(value)
-        value_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        value_label.setStyleSheet("font-size: 18pt; font-weight: bold; color: #2C2416;")
+        top = QHBoxLayout()
+        top.setAlignment(Qt.AlignmentFlag.AlignCenter)  # ← ADD THIS LINE
 
-        text_label = QLabel(label)
-        text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        text_label.setStyleSheet("font-size: 14pt; font-weight: bold; color: #5A4E3A;")
+        emoji_lbl = QLabel(emoji)
+        emoji_lbl.setStyleSheet("font-size: 30pt;")
+        # emoji_lbl.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
 
-        card.card_layout.addWidget(icon_label)
-        card.card_layout.addWidget(value_label)
-        card.card_layout.addWidget(text_label)
+        label_lbl = QLabel(label)
 
+        label_lbl.setStyleSheet("font-size: 30pt; font-weight: bold; color: #2C2416;")
+        # label_lbl.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        top.addWidget(emoji_lbl)
+        top.addWidget(label_lbl)
+        layout.addLayout(top)
+
+        value_lbl = QLabel(str(value))
+        value_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        value_lbl.setStyleSheet("font-size: 35pt; font-weight: bold; color: #6B5B95;")
+        # value_lbl.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        layout.addWidget(value_lbl)
+
+        card.value_label = value_lbl
         return card
 
-    def refresh(self):
-        """Refresh dashboard statistics."""
-        try:
-            stats = self.engine.get_engine_statistics()
-            self.roots_card.card_layout.itemAt(1).widget().setText(str(stats['roots_count']))
-            self.patterns_card.card_layout.itemAt(1).widget().setText(str(stats['patterns_count']))
-            self.derivatives_card.card_layout.itemAt(1).widget().setText(str(stats['generated_words_count']))
-            self.tree_card.card_layout.itemAt(1).widget().setText(str(stats['avl_tree_height']))
-        except Exception as e:
-            print(f"Error refreshing dashboard: {e}")
+    def _get_image_path(self, filename):
+        """Return absolute path to an image in the images folder."""
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        images_dir = os.path.join(script_dir, "images")
+        return os.path.join(images_dir, filename)
 
+    def _create_action_card(self, image_filename, text):
+        card = QFrame()
+        card.setFrameShape(QFrame.Shape.NoFrame)
+        card.setObjectName("actionCard")
+        card.setStyleSheet("""
+            QFrame#actionCard {
+                background: qlineargradient(
+                x1:0, y1:0, x2:1, y2:1,
+                stop:0 #D4C4B0,
+                stop:1 #8B7355
+                );
+                border: 2px solid #C5B5A0;
+                padding: 10px;
+                border-radius: 12px;
+            }
+            QFrame#actionCard:hover {
+                background: qlineargradient(
+                x1:0, y1:0, x2:1, y2:1,
+                stop:0 #8B7355,
+                stop:1 #5D4E37
+                );
+                border: 3px solid #5D4E37;
+                           
+            }               
+            QLabel {
+                background-color: transparent;
+                border: none;
+                padding: 5px;
+                border-radius: 8px;
+            }
+        """)
+        card.setFixedSize(300, 200)
+        card.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        layout = QVBoxLayout(card)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        # emoji_lbl = QLabel(emoji)
+        # emoji_lbl.setStyleSheet("font-size: 30pt;")
+        # emoji_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # emoji_lbl.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents) 
+        # 
+        img_label = QLabel()
+        image_path = self._get_image_path(image_filename)
+        pixmap = QPixmap(image_path)
+        if not pixmap.isNull():
+            scaled = pixmap.scaled(70, 70, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            img_label.setPixmap(scaled)
+        else:
+            print(f"⚠️ Could not load image: {image_path} – falling back to emoji")
+            img_label.setText("➕")
+            img_label.setStyleSheet("font-size: 36pt;")
+        img_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        layout.addWidget(img_label) 
+
+        text_lbl = QLabel(text)
+        text_lbl.setStyleSheet("font-size: 20pt; font-weight: bold; color: #2C2416; margin:0pt")
+
+        text_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        text_lbl.setWordWrap(True)
+        text_lbl.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)  
+
+        layout.addWidget(text_lbl)
+
+        card.mousePressEvent = lambda e, t=text: self._on_action_clicked(t)
+        return card
+
+    def _on_action_clicked(self, action):
+        main = self.window()
+        if hasattr(main, 'tabs'):
+            if action == "إضافة جذر":
+                main.tabs.setCurrentWidget(main.roots_widget)
+            elif action == "توليد كلمة":
+                main.tabs.setCurrentWidget(main.generation_widget)
+            elif action == "تحقق":
+                main.tabs.setCurrentWidget(main.validation_widget)
+            elif action == "المشتقات":
+                main.tabs.setCurrentWidget(main.derivatives_widget)
+        self._add_activity(f"🖱️ {action}")
+
+    def _add_activity(self, text):
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        self.recent_actions.insert(0, f"[{timestamp}] {text}")
+        self.recent_actions = self.recent_actions[:10]
+        self._update_activity_feed()
+
+    def _update_activity_feed(self):
+        self.activity_list.clear()
+        if self.recent_actions:
+            for a in self.recent_actions:
+                self.activity_list.addItem(a)
+        else:
+            self.activity_list.addItem("لا توجد نشاطات بعد")
+
+    def _start_refresh_timer(self):
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self._update_stats)
+        self.timer.start(10000)
+
+    def _update_stats(self):
+        stats = self.engine.get_engine_statistics()
+        self.roots_card.value_label.setText(str(stats['roots_count']))
+        self.patterns_card.value_label.setText(str(stats['patterns_count']))
+        self.derivatives_card.value_label.setText(str(stats['generated_words_count']))
+        self.tree_card.value_label.setText(str(stats['avl_tree_height']))
+        self.charts.refresh()
+        self._add_activity("🔄 تحديث تلقائي")
+
+    def refresh(self):
+        self._update_stats()
+
+    def closeEvent(self, event):
+        self.timer.stop()
+        super().closeEvent(event)
+# ============================================================================
+# FINAL DASHBOARD – with scroll area and guaranteed expansion
+# ============================================================================
+#     def __init__(self, engine, parent=None):
+#         super().__init__(parent)
+#         self.engine = engine
+#         self.recent_actions = []
+#         self._setup_ui()
+#         self._start_refresh_timer()
+
+#     def _setup_ui(self):
+#         # Main scroll area – expands fully
+#         scroll = QScrollArea(self)
+#         scroll.setWidgetResizable(True)
+#         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+#         scroll.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
+#         container = QWidget()
+#         container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
+#         main_layout = QVBoxLayout(container)
+#         main_layout.setSpacing(30)
+#         main_layout.setContentsMargins(30, 30, 30, 30)
+
+#         # Title & subtitle
+#         title = QLabel("🌙 لوحة التحكم")
+#         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+#         title.setStyleSheet("font-size: 22pt; font-weight: bold; color: #2C2416;")
+#         main_layout.addWidget(title)
+
+#         subtitle = QLabel("نظرة عامة على النظام وإحصائيات حية")
+#         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+#         subtitle.setStyleSheet("font-size: 12pt; color: #5A4E3A; font-style: italic;")
+#         main_layout.addWidget(subtitle)
+
+#         # ---------- Counter Cards (Grid 2x2) ----------
+#         counter_layout = QGridLayout()
+#         counter_layout.setSpacing(20)
+
+#         stats = self.engine.get_engine_statistics()
+#         self.roots_card = self._create_counter_card("🌱", "الجذور", stats['roots_count'])
+#         self.patterns_card = self._create_counter_card("📐", "الأوزان", stats['patterns_count'])
+#         self.derivatives_card = self._create_counter_card("📝", "المشتقات", stats['generated_words_count'])
+#         self.tree_card = self._create_counter_card("🌳", "ارتفاع الشجرة", stats['avl_tree_height'])
+
+#         counter_layout.addWidget(self.roots_card, 0, 0)
+#         counter_layout.addWidget(self.patterns_card, 0, 1)
+#         counter_layout.addWidget(self.derivatives_card, 1, 0)
+#         counter_layout.addWidget(self.tree_card, 1, 1)
+
+#         main_layout.addLayout(counter_layout)
+
+#         # ---------- Quick Action Cards ----------
+#         actions_label = QLabel("⚡ إجراءات سريعة")
+#         actions_label.setStyleSheet("font-size: 16pt; font-weight: bold; color: #2C2416;")
+#         main_layout.addWidget(actions_label)
+
+#         actions_layout = QHBoxLayout()
+#         actions_layout.setSpacing(20)
+#         actions_layout.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+
+#         self.add_card = self._create_action_card("➕", "إضافة جذر")
+#         self.gen_card = self._create_action_card("✨", "توليد كلمة")
+#         self.val_card = self._create_action_card("✅", "تحقق")
+#         self.deriv_card = self._create_action_card("📚", "المشتقات")
+
+#         actions_layout.addWidget(self.add_card)
+#         actions_layout.addWidget(self.gen_card)
+#         actions_layout.addWidget(self.val_card)
+#         actions_layout.addWidget(self.deriv_card)
+
+#         main_layout.addLayout(actions_layout)
+
+#         # ---------- Charts (Integrated) ----------
+#         charts_label = QLabel("📊 إحصائيات مرئية")
+#         charts_label.setStyleSheet("font-size: 16pt; font-weight: bold; color: #2C2416;")
+#         main_layout.addWidget(charts_label)
+
+#         from .charts_widget import StatisticsChartsWidget
+#         self.charts = StatisticsChartsWidget(self.engine)
+#         self.charts.setMinimumHeight(300)
+#         self.charts.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+#         main_layout.addWidget(self.charts, 1)   # takes extra vertical space
+
+#         # ---------- Recent Activity ----------
+#         activity_label = QLabel("🕒 آخر النشاطات")
+#         activity_label.setStyleSheet("font-size: 16pt; font-weight: bold; color: #2C2416;")
+#         main_layout.addWidget(activity_label)
+
+#         self.activity_list = QListWidget()
+#         self.activity_list.setMinimumHeight(150)
+#         self.activity_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.MinimumExpanding)
+#         self.activity_list.setStyleSheet("""
+#             QListWidget {
+#                 background-color: #FAF0E6;
+#                 border: 2px solid #C5B5A0;
+#                 border-radius: 8px;
+#                 padding: 10px;
+#             }
+#         """)
+#         self._update_activity_feed()
+#         main_layout.addWidget(self.activity_list)
+
+#         scroll.setWidget(container)
+
+#         wrapper = QVBoxLayout(self)
+#         wrapper.setContentsMargins(0, 0, 0, 0)
+#         wrapper.addWidget(scroll)
+
+#     # ---------- Counter Card ----------
+#     def _create_counter_card(self, emoji, label, value):
+#         card = QFrame()
+#         card.setFrameShape(QFrame.Shape.StyledPanel)
+#         card.setStyleSheet("""
+#             QFrame {
+#                 background-color: #F5EFE6;
+#                 border: 2px solid #C5B5A0;
+#                 border-radius: 12px;
+#                 padding: 15px;
+#             }
+#         """)
+#         card.setMinimumHeight(120)
+#         card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+
+#         layout = QVBoxLayout(card)
+#         top = QHBoxLayout()
+#         emoji_lbl = QLabel(emoji)
+#         emoji_lbl.setStyleSheet("font-size: 28pt;")
+#         label_lbl = QLabel(label)
+#         label_lbl.setStyleSheet("font-size: 14pt; font-weight: bold; color: #2C2416;")
+#         top.addWidget(emoji_lbl)
+#         top.addWidget(label_lbl)
+#         top.addStretch()
+#         layout.addLayout(top)
+
+#         self.value_lbl = QLabel(str(value))
+#         self.value_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+#         self.value_lbl.setStyleSheet("font-size: 24pt; font-weight: bold; color: #6B5B95;")
+#         layout.addWidget(self.value_lbl)
+
+#         card.value_label = self.value_lbl
+#         return card
+
+#     # ---------- Quick Action Card ----------
+#     def _create_action_card(self, emoji, text):
+#         card = QFrame()
+#         card.setFrameShape(QFrame.Shape.StyledPanel)
+#         card.setStyleSheet("""
+#             QFrame {
+#                 background-color: #F5EFE6;
+#                 border: 2px solid #C5B5A0;
+#                 border-radius: 12px;
+#                 padding: 10px;
+#             }
+#             QFrame:hover {
+#                 background-color: #E8DCC8;
+#                 border-color: #6B5B95;
+#             }
+#         """)
+#         card.setFixedSize(150, 150)
+
+#         layout = QVBoxLayout(card)
+#         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+#         emoji_lbl = QLabel(emoji)
+#         emoji_lbl.setStyleSheet("font-size: 36pt;")
+#         text_lbl = QLabel(text)
+#         text_lbl.setStyleSheet("font-size: 12pt; font-weight: bold; color: #2C2416;")
+#         text_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+#         layout.addWidget(emoji_lbl)
+#         layout.addWidget(text_lbl)
+
+#         card.mousePressEvent = lambda e, t=text: self._on_action_clicked(t)
+#         return card
+
+#     def _on_action_clicked(self, action):
+#         main = self.window()
+#         if hasattr(main, 'tabs'):
+#             if action == "إضافة جذر":
+#                 main.tabs.setCurrentWidget(main.roots_widget)
+#             elif action == "توليد كلمة":
+#                 main.tabs.setCurrentWidget(main.generation_widget)
+#             elif action == "تحقق":
+#                 main.tabs.setCurrentWidget(main.validation_widget)
+#             elif action == "المشتقات":
+#                 main.tabs.setCurrentWidget(main.derivatives_widget)
+#         self._add_activity(f"🖱️ {action}")
+
+#     # ---------- Activity Feed ----------
+#     def _add_activity(self, text):
+#         from datetime import datetime
+#         timestamp = datetime.now().strftime("%H:%M:%S")
+#         self.recent_actions.insert(0, f"[{timestamp}] {text}")
+#         self.recent_actions = self.recent_actions[:10]
+#         self._update_activity_feed()
+
+#     def _update_activity_feed(self):
+#         self.activity_list.clear()
+#         if self.recent_actions:
+#             for a in self.recent_actions:
+#                 self.activity_list.addItem(a)
+#         else:
+#             self.activity_list.addItem("✨ لا توجد نشاطات بعد")
+
+#     # ---------- Timer ----------
+#     def _start_refresh_timer(self):
+#         self.timer = QTimer(self)
+#         self.timer.timeout.connect(self._update_stats)
+#         self.timer.start(5000)
+
+#     def _update_stats(self):
+#         stats = self.engine.get_engine_statistics()
+#         self.roots_card.value_label.setText(str(stats['roots_count']))
+#         self.patterns_card.value_label.setText(str(stats['patterns_count']))
+#         self.derivatives_card.value_label.setText(str(stats['generated_words_count']))
+#         self.tree_card.value_label.setText(str(stats['avl_tree_height']))
+#         self.charts.refresh()
+#         self._add_activity("🔄 تحديث تلقائي")
+
+#     def refresh(self):
+#         self._update_stats()
+
+#     def closeEvent(self, event):
+#         self.timer.stop()
+#         super().closeEvent(event)
+        
 
 # ============================================================================
 # ROOTS WIDGET – FINAL FIXED LAYOUT
@@ -158,13 +566,13 @@ class EnhancedRootsWidget(QWidget):
         super().__init__(parent)
         self.engine = engine
         self._setup_ui()
+        self.refresh()
 
     def _setup_ui(self):
         # Outer scroll area – expands to fill tab
         scroll = QScrollArea(self)
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        scroll.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         # Container widget – expand horizontally only, allow vertical to exceed viewport
         container = QWidget()
@@ -178,9 +586,16 @@ class EnhancedRootsWidget(QWidget):
         # Title
         title = QLabel("📚 إدارة الجذور")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("font-size: 18pt; font-weight: bold; color: #2C2416; padding: 10px;")
+        title.setStyleSheet("font-size: 25pt; font-weight: bold; color: #2C2416; padding: 10px;")
         title.setMinimumHeight(50)
         main_layout.addWidget(title)
+
+        desc = QLabel("اكتشف وأضف الجذور العربية مع تحليل تصنيفها الصرفي")
+        desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        desc.setStyleSheet("font-size: 15pt; color: #5A4E3A; font-style: italic;")
+        desc.setWordWrap(True)
+        desc.setMinimumHeight(30)
+        main_layout.addWidget(desc)
 
         # ---------- ADD ROOT CARD ----------
         add_card = CardWidget("إضافة جذر جديد")
@@ -191,16 +606,17 @@ class EnhancedRootsWidget(QWidget):
         input_label.setMinimumHeight(45)
         input_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
-        self.root_input = QLineEdit()
-        self.root_input.setPlaceholderText("مثال: درس")
+        # self.root_input = QLineEdit()
+        self.root_input = ArabicUtils.create_arabic_line_edit("مثال: درس")
+        self.root_input.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
         self.root_input.setAlignment(Qt.AlignmentFlag.AlignRight)
-        self.root_input.setMinimumHeight(50)
+        self.root_input.setMinimumHeight(40)
         self.root_input.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.root_input.returnPressed.connect(self._add_root)
         self.root_input.setToolTip("أدخل جذراً ثلاثياً. سيتم توسعة الشدة تلقائياً.")
 
         add_btn = QPushButton("إضافة")
-        add_btn.setMaximumWidth(100)
+        add_btn.setMinimumWidth(100)
         add_btn.setMinimumHeight(50)
         add_btn.clicked.connect(self._add_root)
 
@@ -217,30 +633,28 @@ class EnhancedRootsWidget(QWidget):
         search_card = CardWidget("البحث والتحليل")
         search_layout = QHBoxLayout()
         search_label = QLabel("ابحث / حلل:")
-        search_label.setFixedWidth(100)
         search_label.setStyleSheet("background: transparent; border: none; font-size: 13pt; padding: 5px;")
         search_label.setMinimumHeight(45)
-        search_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
-        self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("ابحث عن جذر...")
-        self.search_input.setAlignment(Qt.AlignmentFlag.AlignRight)
-        self.search_input.setMinimumHeight(50)
-        self.search_input.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.search_input.returnPressed.connect(self._search_root)
+        self.search_combo = QComboBox()
+        self.search_combo.setEditable(False)                # allow typing
+        self.search_combo.setPlaceholderText("ابحث عن جذر...")
+        self.search_combo.setMinimumHeight(50)
+        self.search_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.search_combo.setToolTip("اختر أو اكتب جذراً للبحث عنه")
 
         search_btn = QPushButton("بحث")
-        search_btn.setMaximumWidth(80)
+        search_btn.setMinimumWidth(100)
         search_btn.setMinimumHeight(50)
         search_btn.clicked.connect(self._search_root)
 
-        analyze_btn = QPushButton("🔬 تحليل")
-        analyze_btn.setMaximumWidth(80)
+        analyze_btn = QPushButton("تحليل")
+        analyze_btn.setMinimumWidth(100)
         analyze_btn.setMinimumHeight(50)
         analyze_btn.clicked.connect(self._analyze_root)
 
         search_layout.addWidget(search_label)
-        search_layout.addWidget(self.search_input, 1)
+        search_layout.addWidget(self.search_combo, 1)
         search_layout.addWidget(search_btn)
         search_layout.addWidget(analyze_btn)
 
@@ -286,7 +700,7 @@ class EnhancedRootsWidget(QWidget):
 
     # ---------- NORMALIZATION HELPER ----------
     def _normalize_root(self, root):
-        return ArabicUtils.normalize_arabic(root, expand_shadda=True)
+        return ArabicUtils.normalize_arabic(root, expand_shadda=True, preserve_alif_maqsura = True)
 
     # ---------- ADD ROOT ----------
     def _add_root(self):
@@ -315,9 +729,9 @@ class EnhancedRootsWidget(QWidget):
     # ---------- SEARCH ROOT ----------
     def _search_root(self):
         """Search for a root and show detailed information in a custom dialog."""
-        root = self.search_input.text().strip()
+        root = self.search_combo.currentText().strip()
         if not root:
-            QMessageBox.warning(self, "تحذير", "يرجى إدخال الجذر للبحث")
+            QMessageBox.warning(self, "تحذير", "يرجى اختيار جذر للبحث")
             return
 
         normalized = self._normalize_root(root)
@@ -333,7 +747,7 @@ class EnhancedRootsWidget(QWidget):
             derivatives = node.get_derivatives()
             if derivatives:
                 info += "<h3 style='color: #2C2416;'>📝 المشتقات:</h3><ul>"
-                for deriv in derivatives[:10]:  # Show first 10
+                for deriv in derivatives[:10]:
                     info += f"<li><b>{deriv['word']}</b> (الوزن: {deriv['pattern']}, التكرار: {deriv['frequency']})</li>"
                 if len(derivatives) > 10:
                     info += f"<li>... و {len(derivatives)-10} مشتق آخر</li>"
@@ -341,15 +755,12 @@ class EnhancedRootsWidget(QWidget):
             else:
                 info += "<p><i>لا توجد مشتقات لهذا الجذر بعد.</i></p>"
 
-            # Create custom dialog
             dialog = QDialog(self)
             dialog.setWindowTitle(f"معلومات الجذر: {root}")
             dialog.setMinimumSize(600, 400)
             dialog.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
 
             layout = QVBoxLayout(dialog)
-
-            # Text edit for rich text
             text_edit = QTextEdit()
             text_edit.setHtml(info)
             text_edit.setReadOnly(True)
@@ -364,7 +775,6 @@ class EnhancedRootsWidget(QWidget):
             """)
             layout.addWidget(text_edit)
 
-            # Close button
             close_btn = QPushButton("إغلاق")
             close_btn.setMinimumHeight(40)
             close_btn.clicked.connect(dialog.accept)
@@ -373,10 +783,9 @@ class EnhancedRootsWidget(QWidget):
             dialog.exec()
         else:
             QMessageBox.warning(self, "غير موجود", f"الجذر '{root}' غير موجود في الشجرة")
-
     # ---------- ANALYZE ROOT ----------
     def _analyze_root(self):
-        root = self.search_input.text().strip() or self.root_input.text().strip()
+        root = self.search_combo.currentText().strip() or self.root_input.text().strip()
         if not root:
             QMessageBox.warning(self, "تنبيه", "أدخل جذراً للتحليل")
             return
@@ -392,7 +801,9 @@ class EnhancedRootsWidget(QWidget):
     # ---------- REFRESH ----------
     def refresh(self):
         self.roots_list.clear()
+        self.search_combo.clear()
         roots = self.engine.roots_tree.display_inorder()
+        self.search_combo.addItems(roots)
         for root in roots:
             self.roots_list.addItem(root)
         stats = self.engine.get_engine_statistics()
@@ -424,9 +835,16 @@ class EnhancedPatternsWidget(QWidget):
 
         title = QLabel("🏗️ الأوزان الصرفية")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("font-size: 18pt; font-weight: bold; color: #2C2416; padding: 10px;")
-        title.setMinimumHeight(50)
+        title.setStyleSheet("font-size: 25pt; font-weight: bold; color: #2C2416; padding: 10px;")
+        title.setMinimumHeight(40)
         main_layout.addWidget(title)
+
+        desc = QLabel("أضف، عدل، أو احذف الأوزان الصرفية للنظام")        
+        desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        desc.setStyleSheet("font-size: 15pt; color: #5A4E3A; font-style: italic;")
+        desc.setWordWrap(True)
+        desc.setMinimumHeight(30)
+        main_layout.addWidget(desc)
         main_layout.addSpacing(10)
 
         # ---------- ADD BUTTON ----------
@@ -439,6 +857,21 @@ class EnhancedPatternsWidget(QWidget):
         # ---------- PATTERNS TABLE CARD ----------
         patterns_card = CardWidget("الأوزان المتاحة")
         self.patterns_table = QTableWidget()
+        header = self.patterns_table.horizontalHeader()
+        header.setStyleSheet("""
+            QHeaderView::section {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                                            stop:0 #8573B3, stop:1 #584A7A);
+                color: white;
+                padding: 8px;
+                border: none;
+                font-weight: bold;
+            }
+        """)
+
+        # Make rows non‑resizable
+        self.patterns_table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
+        self.patterns_table.verticalHeader().setDefaultSectionSize(30) 
         self.patterns_table.setColumnCount(4)
         self.patterns_table.setHorizontalHeaderLabels(["الاسم", "القالب", "الوصف", "مثال"])
         self.patterns_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)

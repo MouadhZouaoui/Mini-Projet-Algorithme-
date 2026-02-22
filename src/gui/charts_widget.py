@@ -3,7 +3,7 @@ Statistics Charts Widget
 Displays root type distribution and generation activity using PyQtGraph.
 """
 import pyqtgraph as pg
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QSizePolicy
 from PyQt6.QtCore import Qt
 
 from root_classifier import RootClassifier
@@ -17,31 +17,33 @@ class StatisticsChartsWidget(QWidget):
         super().__init__(parent)
         self.engine = engine
         pg.setConfigOptions(antialias=True)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._setup_ui()
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
         layout.setSpacing(20)
 
-        title = QLabel("📈 إحصائيات مرئية")
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("font-size: 18pt; font-weight: bold; color: #2C2416;")
-        layout.addWidget(title)
-
         # ----- Root Type Distribution Chart -----
         self.root_plot = pg.PlotWidget(title="توزيع أنواع الجذور")
+        self.root_plot.setMouseEnabled(False, False)   # disable zoom/pan
+        self.root_plot.setMenuEnabled(False) 
         self.root_plot.setLabel('left', 'العدد')
         self.root_plot.setLabel('bottom', 'النوع')
         self.root_plot.setBackground('#F5EFE6')
         self.root_plot.showGrid(x=True, y=True, alpha=0.3)
+        self.root_plot.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         layout.addWidget(self.root_plot, stretch=2)
 
         # ----- Generation Activity Chart (roots with derivatives vs without) -----
         self.gen_plot = pg.PlotWidget(title="نشاط التوليد")
+        self.gen_plot.setMouseEnabled(False, False)
+        self.gen_plot.setMenuEnabled(False)
         self.gen_plot.setLabel('left', 'العدد')
         self.gen_plot.setLabel('bottom', 'الفئة')
         self.gen_plot.setBackground('#F5EFE6')
         self.gen_plot.showGrid(x=True, y=True, alpha=0.3)
+        self.gen_plot.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         layout.addWidget(self.gen_plot, stretch=2)
 
         # ----- Refresh Button -----
@@ -74,7 +76,6 @@ class StatisticsChartsWidget(QWidget):
         }
 
         for root in roots:
-            # Normalize for consistent classification
             normalized = ArabicUtils.normalize_arabic(root, expand_shadda=True)
             analysis = RootClassifier.classify(normalized)
             cat = analysis.category.value
@@ -83,11 +84,9 @@ class StatisticsChartsWidget(QWidget):
             else:
                 counts["آخر"] += 1
 
-        # Prepare data
         categories = list(counts.keys())
         values = list(counts.values())
 
-        # Clear and draw
         self.root_plot.clear()
         x = list(range(len(categories)))
         bg = pg.BarGraphItem(
@@ -97,11 +96,9 @@ class StatisticsChartsWidget(QWidget):
         )
         self.root_plot.addItem(bg)
 
-        # --- FIX: setTicks requires a list of lists of tuples ---
         axis = self.root_plot.getAxis('bottom')
         axis.setTicks([[(i, cat) for i, cat in enumerate(categories)]])
         axis.setStyle(tickFont=pg.Qt.QtGui.QFont("Arial", 10))
-        # ---------------------------------------------------------
 
     def _update_generation_chart(self):
         """Show number of roots with derivatives vs without."""
@@ -119,8 +116,6 @@ class StatisticsChartsWidget(QWidget):
         )
         self.gen_plot.addItem(bg)
 
-        # --- FIX: setTicks for generation chart ---
         axis = self.gen_plot.getAxis('bottom')
         axis.setTicks([[ (0, "جذور بمشتقات"), (1, "جذور بدون") ]])
         axis.setStyle(tickFont=pg.Qt.QtGui.QFont("Arial", 10))
-        # -------------------------------------------

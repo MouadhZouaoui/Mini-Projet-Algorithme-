@@ -49,7 +49,7 @@ class RootClassifier:
             RootAnalysis: Complete analysis of the root
         """
         # First, expand shadda to get the actual letters
-        normalized_root = ArabicUtils.normalize_arabic(root, aggressive=False, expand_shadda=True)
+        normalized_root = ArabicUtils.normalize_arabic(root, aggressive=False, expand_shadda=True, preserve_alif_maqsura=True)
         
         if len(normalized_root) != 3:
             return RootAnalysis(

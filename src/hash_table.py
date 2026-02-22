@@ -176,7 +176,6 @@ class HashTable:
         Validate pattern template syntax.
         Allows repeated digits as long as 1,2,3 all appear at least once.
         """
-        print(f"🔍 HASH DEBUG: _validate_template called with '{template}'")
         if not template:
             return False, "Template cannot be empty"
 

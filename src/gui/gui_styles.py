@@ -1,6 +1,6 @@
 """
 GUI Styling System for Arabic Morphological Engine
-Complete styling with proper sizing and layout fixes.
+Global font enforcement + warm beige/dark purple theme.
 """
 
 from PyQt6.QtGui import QFont
@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import QApplication
 class AppStyles:
     """Centralized styling for the application."""
     
-    # Color Palette
+    # Color Palette (unchanged)
     COLORS = {
         'background': '#E8DCC8',
         'surface': '#F5EFE6',
@@ -31,14 +31,18 @@ class AppStyles:
     
     @staticmethod
     def get_main_stylesheet():
-        """Get main application stylesheet."""
+        """Get main application stylesheet with global font rule."""
         return f"""
+        /* GLOBAL FONT – applied to every widget */
+        * {{
+            font-family: 'Janna LT', 'Traditional Arabic', 'Noto Naskh Arabic', 'Arial', sans-serif;
+            font-size: 12pt;
+        }}
+
         /* Main Window */
         QMainWindow, QWidget {{
             background-color: {AppStyles.COLORS['background']};
             color: {AppStyles.COLORS['text_primary']};
-            font-family: 'Segoe UI', 'Arial', sans-serif;
-            font-size: 12pt;
         }}
         
         /* Tab Widget */
@@ -56,13 +60,13 @@ class AppStyles:
             margin: 2px;
             border-top-left-radius: 8px;
             border-top-right-radius: 8px;
-            font-size: 13pt;
             font-weight: bold;
             min-height: 35px;
         }}
         
         QTabBar::tab:selected {{
-            background-color: {AppStyles.COLORS['primary']};
+            background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                        stop: 0 #8573B3, stop: 1 #584A7A);
             color: {AppStyles.COLORS['text_on_primary']};
         }}
         
@@ -82,12 +86,11 @@ class AppStyles:
         
         /* Push Buttons */
         QPushButton {{
-            background-color: {AppStyles.COLORS['primary']};
-            color: {AppStyles.COLORS['text_on_primary']};
+            background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                        stop: 0 #8573B3, stop: 1 #584A7A);            color: {AppStyles.COLORS['text_on_primary']};
             border: none;
             border-radius: 8px;
             padding: 12px 24px;
-            font-size: 13pt;
             font-weight: bold;
             min-height: 45px;
         }}
@@ -112,7 +115,6 @@ class AppStyles:
             border: 2px solid {AppStyles.COLORS['border']};
             border-radius: 8px;
             padding: 12px;
-            font-size: 13pt;
             min-height: 45px;
         }}
         
@@ -127,7 +129,6 @@ class AppStyles:
             border: 2px solid {AppStyles.COLORS['border']};
             border-radius: 8px;
             padding: 12px;
-            font-size: 12pt;
         }}
         
         /* Combo Box */
@@ -137,7 +138,6 @@ class AppStyles:
             border: 2px solid {AppStyles.COLORS['border']};
             border-radius: 8px;
             padding: 12px;
-            font-size: 13pt;
             min-height: 45px;
         }}
         
@@ -311,7 +311,4 @@ class AppStyles:
     def apply_app_style(app: QApplication):
         """Apply styling to application."""
         app.setStyleSheet(AppStyles.get_main_stylesheet())
-        
-        # Set font
-        font = QFont("Segoe UI", 12)
-        app.setFont(font)
+        # No font set here – it's handled by the global * rule

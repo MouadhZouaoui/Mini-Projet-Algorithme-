@@ -21,12 +21,10 @@ class PatternManager:
         """
         Add a new morphological pattern.
         """
-        print(f"🔍 DEBUG: add_pattern called with template='{template}'")
         if not name or not name.strip():
             return False, "Pattern name cannot be empty"
 
         is_valid, msg = self.validate_template_syntax(template)
-        print(f"🔍 DEBUG: validate_template_syntax returned ({is_valid}, '{msg}')")
         if not is_valid:
             return False, msg
 

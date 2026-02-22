@@ -10,6 +10,10 @@ Features:
 
 import re
 from typing import Optional, List, Tuple
+from PyQt6.QtGui import QKeyEvent
+
+from PyQt6.QtWidgets import QLineEdit
+from PyQt6.QtCore import Qt
 
 from arabic_types import RootCategory
 class ArabicUtils:
@@ -83,41 +87,71 @@ class ArabicUtils:
         return ''.join(result)
     
     @staticmethod
-    def normalize_arabic(text: str, aggressive: bool = False, expand_shadda: bool = True) -> str:
-        """
-        Normalize Arabic text with shadda expansion option.
+    # def normalize_arabic(text: str, aggressive: bool = False, expand_shadda: bool = True) -> str:
+    #     """
+    #     Normalize Arabic text with shadda expansion option.
         
-        Args:
-            text (str): Input Arabic text
-            aggressive (bool): If True, normalize hamza and variations
-            expand_shadda (bool): If True, expand shadda to double letters
+    #     Args:
+    #         text (str): Input Arabic text
+    #         aggressive (bool): If True, normalize hamza and variations
+    #         expand_shadda (bool): If True, expand shadda to double letters
             
-        Returns:
-            str: Normalized text
+    #     Returns:
+    #         str: Normalized text
+    #     """
+    #     if not text:
+    #         return ""
+        
+    #     # Expand shadda first if requested
+    #     if expand_shadda:
+    #         text = ArabicUtils.expand_shadda(text)
+        
+    #     # Remove diacritics (except shadda which we already handled)
+    #     for diacritic in ArabicUtils.DIACRITICS:
+    #         text = text.replace(diacritic, '')
+        
+    #     if aggressive:
+    #         # Apply full normalization
+    #         for variant, standard in ArabicUtils.NORMALIZATION_MAP.items():
+    #             text = text.replace(variant, standard)
+    #     else:
+    #         # Preserve hamza for root letters
+    #         for variant, standard in [('آ', 'ا'), ('إ', 'ا'), ('ٱ', 'ا'), ('ى', 'ي'), ('ة', 'ه')]:
+    #             text = text.replace(variant, standard)
+        
+    #     # Remove non-Arabic characters
+    #     text = re.sub(r'[^\u0600-\u06FF\s]', '', text)
+        
+    #     return text.strip()
+
+    @staticmethod
+    def normalize_arabic(text: str, aggressive: bool = False, expand_shadda: bool = True, preserve_alif_maqsura: bool = False) -> str:
+        """
+        Normalize Arabic text.
+        :param preserve_alif_maqsura: If True, do not convert 'ى' to 'ي'.
         """
         if not text:
             return ""
-        
-        # Expand shadda first if requested
         if expand_shadda:
             text = ArabicUtils.expand_shadda(text)
-        
-        # Remove diacritics (except shadda which we already handled)
+        # Remove diacritics
         for diacritic in ArabicUtils.DIACRITICS:
             text = text.replace(diacritic, '')
-        
         if aggressive:
-            # Apply full normalization
+            # Full normalization: map all variants
             for variant, standard in ArabicUtils.NORMALIZATION_MAP.items():
                 text = text.replace(variant, standard)
         else:
-            # Preserve hamza for root letters
-            for variant, standard in [('آ', 'ا'), ('إ', 'ا'), ('ٱ', 'ا'), ('ى', 'ي'), ('ة', 'ه')]:
+            # Only map hamza variants, keep alif maqsura if requested
+            for variant, standard in [('آ', 'ا'), ('إ', 'ا'), ('ٱ', 'ا')]:
                 text = text.replace(variant, standard)
-        
-        # Remove non-Arabic characters
+            if not preserve_alif_maqsura:
+                # Convert alif maqsura to ya only if not preserving
+                text = text.replace('ى', 'ي')
+            # Also convert ta marbuta to ha
+            text = text.replace('ة', 'ه')
+        # Remove non-Arabic
         text = re.sub(r'[^\u0600-\u06FF\s]', '', text)
-        
         return text.strip()
     
     @staticmethod
@@ -552,3 +586,12 @@ class ArabicUtils:
     def is_diacritic(char: str) -> bool:
         """Check if character is a diacritic."""
         return char in ArabicUtils.DIACRITICS or char == '\u0651'  # Include shadda
+
+    def create_arabic_line_edit(placeholder=""):
+        line_edit = QLineEdit()
+        line_edit.setPlaceholderText(placeholder)
+        line_edit.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        line_edit.setAlignment(Qt.AlignmentFlag.AlignRight)
+        return line_edit
+
+

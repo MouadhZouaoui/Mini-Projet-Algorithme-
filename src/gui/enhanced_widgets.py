@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import (
     QSizePolicy
 )
 from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QTextOption
 
 
 class CardWidget(QWidget):
@@ -67,14 +68,14 @@ class EnhancedGenerationWidget(QWidget):
         # Title
         title = QLabel("🏗️ توليد الكلمات المشتقة")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("font-size: 18pt; font-weight: bold; color: #2C2416; padding: 10px;")
-        title.setMinimumHeight(50)
+        title.setStyleSheet("font-size: 25pt; font-weight: bold; color: #2C2416; padding: 10px;")
+        title.setMinimumHeight(40)
         main_layout.addWidget(title)
 
         # Description
         desc = QLabel("اختر الجذر والوزن لتوليد الكلمة")
         desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        desc.setStyleSheet("font-size: 11pt; color: #5A4E3A; font-style: italic;")
+        desc.setStyleSheet("font-size: 15pt; color: #5A4E3A; font-style: italic;")
         desc.setWordWrap(True)
         desc.setMinimumHeight(30)
         main_layout.addWidget(desc)
@@ -267,7 +268,7 @@ class EnhancedGenerationWidget(QWidget):
 # VALIDATION WIDGET (fixed signature)
 # ============================================================================
 class EnhancedValidationWidget(QWidget):
-    """Word validation widget with optional root filtering."""
+    """Word validation widget with QTextEdit results (matches Generation tab)."""
 
     def __init__(self, engine, parent=None):
         super().__init__(parent)
@@ -280,19 +281,33 @@ class EnhancedValidationWidget(QWidget):
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
 
         container = QWidget()
+        container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
         main_layout = QVBoxLayout(container)
         main_layout.setSpacing(25)
         main_layout.setContentsMargins(30, 30, 30, 30)
 
+        # Title
         title = QLabel("✅ التحقق من الانتماء المورفولوجي")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("font-size: 18pt; font-weight: bold; color: #2C2416;")
+        title.setStyleSheet("font-size: 25pt; font-weight: bold; color: #2C2416;")
         title.setMinimumHeight(50)
         main_layout.addWidget(title)
 
+        # Subtitle (like in Generation tab)
+        subtitle = QLabel("أدخل الكلمة للتحقق من انتمائها إلى الجذور المخزنة")
+        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        subtitle.setStyleSheet("font-size: 15pt; color: #5A4E3A; font-style: italic;")
+        subtitle.setWordWrap(True)
+        subtitle.setMinimumHeight(30)
+        main_layout.addWidget(subtitle)
+
+        main_layout.addSpacing(10)
+
+        # ---------- Validation Card ----------
         card = CardWidget("التحقق من الكلمة")
 
-        # Word input
+        # Word input row
         word_layout = QHBoxLayout()
         word_label = QLabel("الكلمة:")
         word_label.setFixedWidth(120)
@@ -304,14 +319,16 @@ class EnhancedValidationWidget(QWidget):
         self.word_input.setPlaceholderText("مثال: كاتب")
         self.word_input.setAlignment(Qt.AlignmentFlag.AlignRight)
         self.word_input.setMinimumHeight(50)
+        self.word_input.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.word_input.returnPressed.connect(self._validate_word)
+
         word_layout.addWidget(word_label)
-        word_layout.addWidget(self.word_input)
+        word_layout.addWidget(self.word_input, 1)
         word_widget = QWidget()
         word_widget.setLayout(word_layout)
         card.add_widget(word_widget)
 
-        # Root input (optional)
+        # Root input row (optional)
         root_layout = QHBoxLayout()
         root_label = QLabel("الجذر (اختياري):")
         root_label.setFixedWidth(120)
@@ -323,9 +340,11 @@ class EnhancedValidationWidget(QWidget):
         self.root_input.setPlaceholderText("مثال: كتب")
         self.root_input.setAlignment(Qt.AlignmentFlag.AlignRight)
         self.root_input.setMinimumHeight(50)
+        self.root_input.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.root_input.returnPressed.connect(self._validate_word)
+
         root_layout.addWidget(root_label)
-        root_layout.addWidget(self.root_input)
+        root_layout.addWidget(self.root_input, 1)
         root_widget = QWidget()
         root_widget.setLayout(root_layout)
         card.add_widget(root_widget)
@@ -334,17 +353,26 @@ class EnhancedValidationWidget(QWidget):
         hint = QLabel("💡 اترك الجذر فارغاً للبحث في جميع الجذور المخزنة")
         hint.setStyleSheet("font-size: 11pt; color: #5A4E3A; font-style: italic; padding: 5px;")
         hint.setAlignment(Qt.AlignmentFlag.AlignRight)
+        hint.setWordWrap(True)
         card.add_widget(hint)
 
-        # Validate button
+        # Validate button (centered)
         self.validate_btn = QPushButton("التحقق")
-        self.validate_btn.setMinimumHeight(55)
+        self.validate_btn.setMinimumHeight(50)
+        self.validate_btn.setMaximumWidth(200)
         self.validate_btn.clicked.connect(self._validate_word)
-        card.add_widget(self.validate_btn)
+
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        btn_layout.addWidget(self.validate_btn)
+        btn_layout.addStretch()
+        btn_widget = QWidget()
+        btn_widget.setLayout(btn_layout)
+        card.add_widget(btn_widget)
 
         main_layout.addWidget(card)
 
-        # Results
+        # ---------- Results (QTextEdit, same as Generation tab) ----------
         results_label = QLabel("النتائج")
         results_label.setStyleSheet("font-size: 14pt; font-weight: bold; color: #2C2416; padding: 5px;")
         results_label.setMinimumHeight(35)
@@ -353,11 +381,22 @@ class EnhancedValidationWidget(QWidget):
         self.results_box = QTextEdit()
         self.results_box.setPlaceholderText("نتائج التحقق ستظهر هنا...")
         self.results_box.setReadOnly(True)
-        self.results_box.setMinimumHeight(200)
-        main_layout.addWidget(self.results_box)
-        main_layout.addStretch()
+        self.results_box.setMinimumHeight(250)          # match generation tab
+        self.results_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.results_box.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        self.results_box.setStyleSheet("""
+            QTextEdit {
+                background-color: #F5EFE6;
+                border: 2px solid #C5B5A0;
+                border-radius: 8px;
+                padding: 12px;
+                font-size: 12pt;
+            }
+        """)
+        main_layout.addWidget(self.results_box, 1)
 
         scroll.setWidget(container)
+
         wrapper_layout = QVBoxLayout(self)
         wrapper_layout.setContentsMargins(0, 0, 0, 0)
         wrapper_layout.addWidget(scroll)
@@ -376,36 +415,58 @@ class EnhancedValidationWidget(QWidget):
         color = '#4CAF50' if is_valid else '#F44336'
         status = '✅ كلمة صحيحة' if is_valid else '❌ كلمة غير صحيحة'
 
+        # Build HTML using a table with dir="rtl" – this now works reliably
         html = f"""
-        <div style='direction: rtl; text-align: right; padding: 15px;'>
-            <h2 style='color: {color}; margin-bottom: 15px;'>{status}</h2>
-            <table style='width: 100%; border-collapse: collapse;'>
-                <tr style='background: #F5EFE6;'>
-                    <td style='padding: 10px; font-weight: bold;'>الكلمة:</td>
-                    <td style='padding: 10px;'>{result['word']}</td>
-                </tr>
+        <div style='direction: rtl; text-align: right; padding: 5px;'>
+            <h2 style='color: {color}; margin: 0 0 15px 0;'>{status}</h2>
+            <table dir="rtl" style='width: 100%; border-collapse: collapse;'>
         """
+
+        # Word row
+        html += f"""
+            <tr style='background: #F5EFE6;'>
+                <td style='padding: 8px; font-weight: bold; text-align: right; white-space: nowrap; width: 1%;'>الكلمة:</td>
+                <td style='padding: 8px; text-align: right;'>{result['word']}</td>
+            </tr>
+        """
+
         if is_valid:
             if 'matches' in result:
-                html += "<tr><td colspan='2' style='padding:10px; font-weight:bold;'>المشتقات المطابقة:</td></tr>"
+                # Header
+                html += """
+                <tr><td colspan="2" style='padding:10px 0 5px 0; font-weight:bold; text-align: right;'>المشتقات المطابقة:</td></tr>
+                """
                 for i, match in enumerate(result['matches'], 1):
                     bg = '#F5EFE6' if i % 2 == 0 else 'white'
                     html += f"""
                     <tr style='background:{bg};'>
-                        <td style='padding:10px;'>الوزن {i}:</td>
-                        <td style='padding:10px;'>{match['pattern']} (الجذر: {match['root']})</td>
+                        <td style='padding:8px; text-align: right; white-space: nowrap;'>الوزن {i}:</td>
+                        <td style='padding:8px; text-align: right;'>{match['pattern']} (الجذر: {match['root']})</td>
                     </tr>
                     """
             else:
+                # Single match
                 html += f"""
-                <tr><td style='padding:10px; font-weight:bold;'>الجذر:</td><td>{result.get('root','غير محدد')}</td></tr>
-                <tr><td style='padding:10px; font-weight:bold;'>الوزن:</td><td>{result.get('pattern','غير محدد')}</td></tr>
+                <tr>
+                    <td style='padding:8px; font-weight:bold; text-align: right;'>الجذر:</td>
+                    <td style='padding:8px; text-align: right;'>{result.get('root', 'غير محدد')}</td>
+                </tr>
+                <tr style='background: #F5EFE6;'>
+                    <td style='padding:8px; font-weight:bold; text-align: right;'>الوزن:</td>
+                    <td style='padding:8px; text-align: right;'>{result.get('pattern', 'غير محدد')}</td>
+                </tr>
                 """
         else:
             if 'possible_roots' in result and result['possible_roots']:
                 html += f"""
-                <tr><td style='padding:10px; font-weight:bold;'>جذور محتملة:</td>
-                    <td style='padding:10px;'>{'، '.join(result['possible_roots'])}</td></tr>
+                <tr>
+                    <td style='padding:8px; font-weight:bold; text-align: right;'>جذور محتملة:</td>
+                    <td style='padding:8px; text-align: right;'>{'، '.join(result['possible_roots'])}</td>
+                </tr>
                 """
-        html += "</table></div>"
+
+        html += """
+            </table>
+        </div>
+        """
         self.results_box.setHtml(html)

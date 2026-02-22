@@ -91,7 +91,6 @@ class MorphologicalEngine:
         # Get all patterns
         all_patterns = self.patterns_table.get_all_patterns()
         
-        print(f"🔮 Generating words for root '{root}' with {len(all_patterns)} patterns...")
         
         for pattern_name, pattern_data in all_patterns:
             result = self.generate_word(root, pattern_name)

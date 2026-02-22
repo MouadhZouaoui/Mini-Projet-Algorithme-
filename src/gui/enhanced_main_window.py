@@ -5,12 +5,11 @@ Includes all tabs, menus, and dialogs.
 import json
 import os
 from PyQt6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QTabWidget, QPushButton,
+    QMainWindow, QWidget, QVBoxLayout, QTabWidget,
     QMessageBox, QFileDialog, QStatusBar, QApplication, QSizePolicy
 )
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QAction, QShortcut, QKeySequence
-
+from PyQt6.QtGui import QAction, QIcon, QShortcut, QKeySequence
 # Import custom widgets
 from .enhanced_widgets import EnhancedGenerationWidget, EnhancedValidationWidget
 from .enhanced_roots_patterns import EnhancedRootsWidget, EnhancedPatternsWidget, EnhancedDashboardWidget
@@ -35,13 +34,20 @@ class EnhancedMainWindow(QMainWindow):
         self._create_status_bar()
         self._connect_signals()
         self._setup_shortcuts()
+        self._set_app_icon()
 
-        # Try auto-load data after window is shown
         QTimer.singleShot(100, self._try_auto_load_data)
+
+    def _set_app_icon(self):
+        """Set application icon."""
+        icon_path = os.path.join(os.path.dirname(__file__), "images", "moon.png")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+
 
     def _setup_ui(self):
         """Setup central widget and tabs."""
-        self.setWindowTitle("🌙 محرك البحث المورفولوجي للغة العربية")
+        self.setWindowTitle("محرك البحث المورفولوجي للغة العربية")
         self.setMinimumSize(1300, 850)
         self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
 
@@ -73,10 +79,10 @@ class EnhancedMainWindow(QMainWindow):
         self.tabs.addTab(self.generation_widget, "توليد الكلمات")
         self.tabs.addTab(self.validation_widget, "التحقق")
         self.tabs.addTab(self.derivatives_widget, "المشتقات")
-        self.tabs.addTab(self.charts_widget, "إحصائيات مرئية")
 
         # Add tab widget to main layout with stretch factor 1 (takes all remaining space)
         main_layout.addWidget(self.tabs, 1)
+        
 
     def _create_menu_bar(self):
         """Create menu bar with all actions."""
@@ -111,7 +117,7 @@ class EnhancedMainWindow(QMainWindow):
         file_menu.addAction(exit_action)
 
         # ----- Tools Menu -----
-        tools_menu = menubar.addMenu("🔧 أدوات")
+        tools_menu = menubar.addMenu("أدوات")
 
         tree_action = QAction("🌳 عمليات الشجرة", self)
         tree_action.triggered.connect(self.show_tree_dialog)
@@ -127,12 +133,6 @@ class EnhancedMainWindow(QMainWindow):
         validate_pattern_action.triggered.connect(self.show_pattern_validation_dialog)
         tools_menu.addAction(validate_pattern_action)
 
-        # ----- View Menu -----
-        view_menu = menubar.addMenu("عرض")
-
-        self.stats_action = QAction("📊 لوحة التحكم", self)
-        self.stats_action.triggered.connect(lambda: self.tabs.setCurrentWidget(self.dashboard_widget))
-        view_menu.addAction(self.stats_action)
 
         # ----- Help Menu -----
         help_menu = menubar.addMenu("مساعدة")
@@ -232,6 +232,7 @@ class EnhancedMainWindow(QMainWindow):
 
             # Patterns file
             patterns_layout = QHBoxLayout()
+
             patterns_label = QLabel("ملف الأوزان:")
             patterns_label.setFixedWidth(100)
             patterns_input = QLineEdit()
@@ -354,11 +355,11 @@ class EnhancedMainWindow(QMainWindow):
         about_text = """
         <div style='direction: rtl; text-align: center;'>
             <h2 style='color: #6B5B95;'>🌙 محرك البحث المورفولوجي</h2>
-            <p><b>الإصدار:</b> 2.0</p>
+            <p><b>الإصدار:</b> 1.0</p>
             <p><b>المطورون:</b> Zouaoui Mouadh, Ayari Yosr, Khadhraoui Malak</p>
-            <p><b>جامعة:</b> [اسم الجامعة]</p>
+            <p><b>جامعة:</b> المعهد العالي للاعلامية</p>
             <hr>
-            <p style='font-size: 11pt;'>هيكل بيانات متقدم للتعامل مع الجذور العربية<br>
+            <p style='font-size: 11pt;'> هيكل بيانات متقدم للتعامل مع الجذور العربية<br>
             شجرة AVL للجذور – جدول تجزئة للأوزان</p>
         </div>
         """
@@ -411,11 +412,28 @@ class EnhancedMainWindow(QMainWindow):
             event.ignore()
 
 
+# ---------- Specfic Font Configuration For the App ----------
+
+# def setup_application_font(app):
+#     if "Janna LT" in QFontDatabase.families():
+#         app.setFont(QFont("Janna LT", 12))
+
+
 # ---------- Application Entry Point ----------
 def run_gui_app(engine):
     """Run the GUI application with splash screen."""
     import sys
+    from PyQt6.QtWidgets import QApplication
+    from PyQt6.QtGui import QIcon
+    import os
     app = QApplication(sys.argv)
+
+    icon_path = os.path.join(os.path.dirname(__file__), "images", "moon.png")
+    if os.path.exists(icon_path):
+        app.setWindowIcon(QIcon(icon_path))
+
+    
+
 
     # Apply global styling
     AppStyles.apply_app_style(app)
@@ -436,7 +454,7 @@ def run_gui_app(engine):
     splash.updateProgress(80)
     app.processEvents()
 
-    window.show()
+    window.showMaximized()
     splash.updateProgress(100)
     app.processEvents()
     splash.finish(window)

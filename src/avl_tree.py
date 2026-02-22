@@ -107,7 +107,7 @@ class AVLTree:
         """
 
         # Normalize the root first (expand shadda)
-        normalized_root = ArabicUtils.normalize_arabic(root, aggressive=False, expand_shadda=True)
+        normalized_root = ArabicUtils.normalize_arabic(root, aggressive=False, expand_shadda=True, preserve_alif_maqsura=True)
         
         # Check if it's a valid root after normalization
         if not ArabicUtils.is_valid_root(normalized_root):
